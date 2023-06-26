@@ -22,7 +22,6 @@ gurobi.log
 
 doc/_build
 
-config.yaml
 
 dconf
 /data/links_p_nom.csv
@@ -54,16 +53,10 @@ publications.jrc.ec.europa.eu/
 /scripts/old
 
 *.pyc
-/cutouts
 /tmp
 /pypsa
 
 *.xlsx
-
-config.yaml
-
-doc/_build
-
 *.xls
 
 *.geojson
