@@ -10,12 +10,12 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "H2_pathway" # use this to keep track of runs with different settings
+  name: "H2_overnight_20230629" # use this to keep track of runs with different settings
   disable_progressbar: false # set to true to disable the progressbar
   shared_resources: true # set to true to share the default resources across runs
   shared_cutouts: true # set to true to share the default cutout(s) across runs
 
-foresight: myopic # options are overnight, myopic, perfect (perfect is not yet implemented)
+foresight: overnight # options are overnight, myopic, perfect (perfect is not yet implemented)
 # if you use myopic or perfect foresight, set the investment years in "planning_horizons" below
 
 scenario:
@@ -33,7 +33,7 @@ scenario:
   opts: # only relevant for PyPSA-Eur
   - ''
   sector_opts: # this is where the main scenario settings are
-  - CO2L0-25H-T-H-B-I-A-dist1
+  - Co2L0-3H-T-H-B-I-A-solar+p3-linemaxext10
   # to really understand the options here, look in scripts/prepare_sector_network.py
   # Co2Lx specifies the CO2 target in x% of the 1990 values; default will give default (5%);
   # Co2L0p25 will give 25% CO2 emissions; Co2Lm0p05 will give 5% negative emissions
@@ -494,10 +494,10 @@ sector:
     central: 180
   boilers: true
   oil_boilers: false
-  biomass_boiler: true
+  biomass_boiler: false
   chp: true
   micro_chp: false
-  solar_thermal: true
+  solar_thermal: false
   solar_cf_correction: 0.788457  # =  >>> 1/1.2683
   marginal_cost_storage: 0. #1e-4
   methanation: true
@@ -587,9 +587,9 @@ industry:
   MWh_NH3_per_MWh_H2_cracker: 1.46 # https://github.com/euronion/trace/blob/44a5ff8401762edbef80eff9cfe5a47c8d3c8be4/data/efficiencies.csv
   NH3_process_emissions: 24.5 # in MtCO2/a from SMR for H2 production for NH3 from UNFCCC for 2015 for EU28
   petrochemical_process_emissions: 25.5 # in MtCO2/a for petrochemical and other from UNFCCC for 2015 for EU28
-  HVC_primary_fraction: 1. # fraction of today's HVC produced via primary route
-  HVC_mechanical_recycling_fraction: 0. # fraction of today's HVC produced via mechanical recycling
-  HVC_chemical_recycling_fraction: 0. # fraction of today's HVC produced via chemical recycling
+  HVC_primary_fraction: 0.45 # fraction of today's HVC produced via primary route
+  HVC_mechanical_recycling_fraction: 0.30 # fraction of today's HVC produced via mechanical recycling
+  HVC_chemical_recycling_fraction: 0.15 # fraction of today's HVC produced via chemical recycling
   HVC_production_today: 52. # MtHVC/a from DECHEMA (2017), Figure 16, page 107; includes ethylene, propylene and BTX
   MWh_elec_per_tHVC_mechanical_recycling: 0.547 # from SI of https://doi.org/10.1016/j.resconrec.2020.105010, Table S5, for HDPE, PP, PS, PET. LDPE would be 0.756.
   MWh_elec_per_tHVC_chemical_recycling: 6.9 # Material Economics (2019), page 125; based on pyrolysis and electric steam cracking
