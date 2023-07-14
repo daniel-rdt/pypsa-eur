@@ -10,7 +10,7 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "H2_overnight_20230629" # use this to keep track of runs with different settings
+  name: "H2_overnight_retrofit_180_20230714" # use this to keep track of runs with different settings
   disable_progressbar: false # set to true to disable the progressbar
   shared_resources: true # set to true to share the default resources across runs
   shared_cutouts: true # set to true to share the default cutout(s) across runs
@@ -33,7 +33,10 @@ scenario:
   opts: # only relevant for PyPSA-Eur
   - ''
   sector_opts: # this is where the main scenario settings are
-  - Co2L0-3H-T-H-B-I-A-solar+p3-linemaxext10
+  - Co2L0-300H-T-H-B-I-A-solar+p3
+#  - Co2L0-300H-T-H-B-I-A-solar+p3-linemaxext10-noH2network
+#  - Co2L0-300H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0
+#  - Co2L0-300H-T-H-B-I-A-solar+p3-linemaxext10-noH2network-onwind+p0
   # to really understand the options here, look in scripts/prepare_sector_network.py
   # Co2Lx specifies the CO2 target in x% of the 1990 values; default will give default (5%);
   # Co2L0p25 will give 25% CO2 emissions; Co2Lm0p05 will give 5% negative emissions
@@ -63,40 +66,40 @@ countries: ['AL', 'AT', 'BA', 'BE', 'BG', 'CH', 'CZ', 'DE', 'DK', 'EE', 'ES', 'F
 
 focus_weights:
   # here fractions are set so that out of selected 180 nodes, 144 are German nodes and the rest is
-  # distributed accordingly with one node per country zone (2 for DK, IT, IE, ES)
-  'DE': 0.8
-  'AL': 0.00555555555
-  'AT': 0.00555555555
-  'BA': 0.00555555555
-  'BE': 0.00555555555
-  'BG': 0.00555555555
-  'CH': 0.00555555555
-  'CZ': 0.00555555555
-  'DK': 0.01111111111
-  'EE': 0.00555555555
-  'ES': 0.01111111111
-  'FI': 0.00555555555
-  'FR': 0.00555555555
-  'GB': 0.00555555555
-  'GR': 0.00555555555
-  'HR': 0.00555555555
-  'HU': 0.00555555555
-  'IE': 0.01111111111
-  'IT': 0.01111111111
-  'LT': 0.00555555555
-  'LU': 0.00555555555
-  'LV': 0.00555555555
-  'ME': 0.00555555555
-  'MK': 0.00555555555
-  'NL': 0.00555555555
-  'NO': 0.00555555555
-  'PL': 0.00555555555
-  'PT': 0.00555555555
-  'RO': 0.00555555555
-  'RS': 0.00555555555
-  'SE': 0.00555555555
-  'SI': 0.00555555555
-  'SK': 0.00555555555
+  # distributed accordingly with one node per country zone (2 for DK, IT, GB, ES)
+  'DE': 0.6
+  'AL': 0.0125
+  'AT': 0.0125
+  'BA': 0.0125
+  'BE': 0.0125
+  'BG': 0.0125
+  'CH': 0.0125
+  'CZ': 0.0125
+  'DK': 0.0125
+  'EE': 0.0125
+  'ES': 0.0125
+  'FI': 0.0125
+  'FR': 0.0125
+  'GB': 0.0125
+  'GR': 0.0125
+  'HR': 0.0125
+  'HU': 0.0125
+  'IE': 0.0125
+  'IT': 0.0125
+  'LT': 0.0125
+  'LU': 0.0125
+  'LV': 0.0125
+  'ME': 0.0125
+  'MK': 0.0125
+  'NL': 0.0125
+  'NO': 0.0125
+  'PL': 0.0125
+  'PT': 0.0125
+  'RO': 0.0125
+  'RS': 0.0125
+  'SE': 0.0125
+  'SI': 0.0125
+  'SK': 0.0125
 
 snapshots:
   start: "2013-01-01"
@@ -105,13 +108,13 @@ snapshots:
 
 enable:
   prepare_links_p_nom: false
-  retrieve_databundle: true
-  retrieve_sector_databundle: true
-  retrieve_cost_data: true
+  retrieve_databundle: false
+  retrieve_sector_databundle: false
+  retrieve_cost_data: false
   build_cutout: false
   retrieve_cutout: false
   build_natura_raster: false
-  retrieve_natura_raster: true
+  retrieve_natura_raster: false
   custom_busmap: false
 
 # CO2 budget as a fraction of 1990 emissions
@@ -936,7 +939,7 @@ plotting:
     SMR CC: '#4f1745'
     H2 liquefaction: '#d647bd'
     hydrogen storage: '#bf13a0'
-    H2 storage: '#bf13a0'
+    H2 Store: '#bf13a0'
     land transport fuel cell: '#6b3161'
     H2 pipeline: '#f081dc'
     H2 pipeline retrofitted: '#ba99b5'
