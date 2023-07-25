@@ -10,20 +10,21 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "H2_overnight_retrofit_180_20230714" # use this to keep track of runs with different settings
+  name: "H2_myopic_noretrofit_300h_20230723" # use this to keep track of runs with different settings
   disable_progressbar: false # set to true to disable the progressbar
-  shared_resources: true # set to true to share the default resources across runs
+  shared_resources: false # set to true to share the default resources across runs
   shared_cutouts: true # set to true to share the default cutout(s) across runs
 
-foresight: overnight # options are overnight, myopic, perfect (perfect is not yet implemented)
+foresight: myopic # options are overnight, myopic, perfect (perfect is not yet implemented)
 # if you use myopic or perfect foresight, set the investment years in "planning_horizons" below
 
 scenario:
   simpl:
   - ''
   ll:  # allowed transmission line volume expansion, can be any float >= 1.0 with a prefix v|c (today) or "copt"
-  - v1.0
-#  - v1.5
+#  - v1.0
+  - v1.5
+#  - v2.0
   clusters:  # number of nodes in Europe, any integer between 37 (1 node per country-zone) and several hundred
 #  - 37
   - 180
@@ -54,12 +55,10 @@ scenario:
   # cb40ex0 distributes a carbon budget of 40 GtCO2 following an exponential
   # decay with initial growth rate 0
   planning_horizons: # investment years for myopic and perfect; for overnight, year of cost assumptions can be different and is defined under 'costs'
-  - 2050
   # for example, set to
-  # - 2020
-  # - 2030
-  # - 2040
-  # - 2050
+   - 2030
+   - 2040
+   - 2050
   # for myopic foresight
 
 countries: ['AL', 'AT', 'BA', 'BE', 'BG', 'CH', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GB', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'ME', 'MK', 'NL', 'NO', 'PL', 'PT', 'RO', 'RS', 'SE', 'SI', 'SK']
@@ -108,13 +107,13 @@ snapshots:
 
 enable:
   prepare_links_p_nom: false
-  retrieve_databundle: false
-  retrieve_sector_databundle: false
-  retrieve_cost_data: false
+  retrieve_databundle: true
+  retrieve_sector_databundle: true
+  retrieve_cost_data: true
   build_cutout: false
   retrieve_cutout: false
   build_natura_raster: false
-  retrieve_natura_raster: false
+  retrieve_natura_raster: true
   custom_busmap: false
 
 # CO2 budget as a fraction of 1990 emissions
@@ -401,8 +400,8 @@ sector:
      # increase of today's district heating demand to potential maximum district heating share
      # progress = 0 means today's district heating share, progress = 1 means maximum fraction of urban demand is supplied by district heating
     progress:
-      2020: 0.0
-      2030: 0.3
+      2030: 0.0
+      2035: 0.3
       2040: 0.6
       2050: 1.0
     district_heating_loss: 0.15
@@ -426,18 +425,18 @@ sector:
   v2g: true #allows feed-in to grid from EV battery
   #what is not EV or FCEV is oil-fuelled ICE
   land_transport_fuel_cell_share:
-    2020: 0
-    2030: 0.05
+    2030: 0
+    2035: 0.05
     2040: 0.1
     2050: 0.15
   land_transport_electric_share:
-    2020: 0
-    2030: 0.25
+    2030: 0
+    2035: 0.25
     2040: 0.6
     2050: 0.85
   land_transport_ice_share:
-    2020: 1
-    2030: 0.7
+    2030: 1
+    2035: 0.7
     2040: 0.3
     2050: 0
   transport_fuel_cell_efficiency: 0.5
@@ -451,18 +450,18 @@ sector:
   MWh_MeOH_per_MWh_e: 3.6907 # in LHV, source: DECHEMA (2017): Low carbon energy and feedstock for the European chemical industry , pg. 64.
   shipping_hydrogen_liquefaction: false # whether to consider liquefaction costs for shipping H2 demands
   shipping_hydrogen_share:
-    2020: 0
     2030: 0
+    2035: 0
     2040: 0
     2050: 0
   shipping_methanol_share:
-    2020: 0
-    2030: 0.3
+    2030: 0
+    2035: 0.3
     2040: 0.7
     2050: 1
   shipping_oil_share:
-    2020: 1
-    2030: 0.7
+    2030: 1
+    2035: 0.7
     2040: 0.3
     2050: 0
   shipping_methanol_efficiency: 0.46 # 10-15% higher https://www.iea-amf.org/app/webroot/files/file/Annex%20Reports/AMF_Annex_56.pdf, https://users.ugent.be/~lsileghe/documents/extended_abstract.pdf
@@ -526,9 +525,9 @@ sector:
   cc_fraction: 0.9  # default fraction of CO2 captured with post-combustion capture
   hydrogen_underground_storage: true
   hydrogen_underground_storage_locations:
-    # - onshore  # more than 50 km from sea
+#  - onshore  # more than 50 km from sea
   - nearshore    # within 50 km of sea
-    # - offshore
+#  - offshore
   ammonia: false # can be false (no NH3 carrier), true (copperplated NH3), "regional" (regionalised NH3 without network)
   min_part_load_fischer_tropsch: 0.9 # p_min_pu
   min_part_load_methanolisation: 0.5 # p_min_pu
