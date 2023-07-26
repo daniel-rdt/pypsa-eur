@@ -3265,8 +3265,8 @@ if __name__ == "__main__":
             simpl="",
             opts="",
             clusters="180",
-            ll="v1.0",
-            sector_opts="CO2L0-25H-T-H-B-I-A-dist1",
+            ll="v1.5",
+            sector_opts="CO2L0-300H-T-H-B-I-A-solar+p3",
             planning_horizons="2050",
         )
 

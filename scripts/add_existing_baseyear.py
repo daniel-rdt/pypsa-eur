@@ -601,11 +601,11 @@ if __name__ == "__main__":
         snakemake = mock_snakemake(
             "add_existing_baseyear",
             simpl="",
-            clusters="45",
-            ll="v1.0",
+            clusters="180",
+            ll="v1.5",
             opts="",
-            sector_opts="8760H-T-H-B-I-A-solar+p3-dist1",
-            planning_horizons=2020,
+            sector_opts="CO2L0-300H-T-H-B-I-A-solar+p3",
+            planning_horizons=2050,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
