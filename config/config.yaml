@@ -10,9 +10,9 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "H2_myopic_noretrofit_300h_20230723" # use this to keep track of runs with different settings
+  name: "H2_myopic_6months_400h_20230803" # use this to keep track of runs with different settings
   disable_progressbar: false # set to true to disable the progressbar
-  shared_resources: false # set to true to share the default resources across runs
+  shared_resources: true # set to true to share the default resources across runs
   shared_cutouts: true # set to true to share the default cutout(s) across runs
 
 foresight: myopic # options are overnight, myopic, perfect (perfect is not yet implemented)
@@ -34,7 +34,7 @@ scenario:
   opts: # only relevant for PyPSA-Eur
   - ''
   sector_opts: # this is where the main scenario settings are
-  - Co2L0-300H-T-H-B-I-A-solar+p3
+  - Co2L0-400H-T-H-B-I-A-solar+p3
 #  - Co2L0-300H-T-H-B-I-A-solar+p3-linemaxext10-noH2network
 #  - Co2L0-300H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0
 #  - Co2L0-300H-T-H-B-I-A-solar+p3-linemaxext10-noH2network-onwind+p0
@@ -102,18 +102,18 @@ focus_weights:
 
 snapshots:
   start: "2013-01-01"
-  end: "2014-01-01"
+  end: "2013-07-01"
   inclusive: 'left' # include start, not end
 
 enable:
   prepare_links_p_nom: false
-  retrieve_databundle: true
-  retrieve_sector_databundle: true
-  retrieve_cost_data: true
+  retrieve_databundle: false
+  retrieve_sector_databundle: false
+  retrieve_cost_data: false
   build_cutout: false
   retrieve_cutout: false
   build_natura_raster: false
-  retrieve_natura_raster: true
+  retrieve_natura_raster: false
   custom_busmap: false
 
 # CO2 budget as a fraction of 1990 emissions
