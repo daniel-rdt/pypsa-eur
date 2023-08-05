@@ -195,17 +195,17 @@ def get(item, investment_year=None):
 
 
 def co2_emissions_year(
-    countries, input_eurostat, opts, emissions_scope, report_year, year
+    countries, input_eurostat, opts, year
 ):
     """
     Calculate CO2 emissions in one specific year (e.g. 1990 or 2018).
     """
-    emissions_scope = snakemake.params.energy["emissions"]
+    emissions_scope = snakemake.params.emissions_scope
     eea_co2 = build_eea_co2(snakemake.input.co2, year, emissions_scope)
 
     # TODO: read Eurostat data from year > 2014
     # this only affects the estimation of CO2 emissions for BA, RS, AL, ME, MK
-    report_year = snakemake.params.energy["eurostat_report_year"]
+    report_year = snakemake.params.eurostat_report_year
     if year > 2014:
         eurostat_co2 = build_eurostat_co2(
             input_eurostat, countries, report_year, year=2014
@@ -3266,8 +3266,8 @@ if __name__ == "__main__":
             opts="",
             clusters="180",
             ll="v1.5",
-            sector_opts="CO2L0-300H-T-H-B-I-A-solar+p3",
-            planning_horizons="2050",
+            sector_opts="8760H-T-H-B-I-A-solar+p3",
+            planning_horizons="2030",
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
