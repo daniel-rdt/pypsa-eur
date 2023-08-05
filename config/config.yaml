@@ -10,7 +10,7 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "H2_myopic_6months_400h_20230803" # use this to keep track of runs with different settings
+  name: "20230805_H2_myopic_cbex_8760h" # use this to keep track of runs with different settings
   disable_progressbar: false # set to true to disable the progressbar
   shared_resources: true # set to true to share the default resources across runs
   shared_cutouts: true # set to true to share the default cutout(s) across runs
@@ -26,15 +26,11 @@ scenario:
   - v1.5
 #  - v2.0
   clusters:  # number of nodes in Europe, any integer between 37 (1 node per country-zone) and several hundred
-#  - 37
   - 180
-#  - 256
-#  - 512
-#  - 1024
   opts: # only relevant for PyPSA-Eur
   - ''
   sector_opts: # this is where the main scenario settings are
-  - Co2L0-400H-T-H-B-I-A-solar+p3
+  - 8760H-T-H-B-I-A-solar+p3-cb40ex0
 #  - Co2L0-300H-T-H-B-I-A-solar+p3-linemaxext10-noH2network
 #  - Co2L0-300H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0
 #  - Co2L0-300H-T-H-B-I-A-solar+p3-linemaxext10-noH2network-onwind+p0
@@ -57,8 +53,9 @@ scenario:
   planning_horizons: # investment years for myopic and perfect; for overnight, year of cost assumptions can be different and is defined under 'costs'
   # for example, set to
    - 2030
+   - 2035
    - 2040
-   - 2050
+   - 2045
   # for myopic foresight
 
 countries: ['AL', 'AT', 'BA', 'BE', 'BG', 'CH', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GB', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'ME', 'MK', 'NL', 'NO', 'PL', 'PT', 'RO', 'RS', 'SE', 'SI', 'SK']
@@ -66,7 +63,6 @@ countries: ['AL', 'AT', 'BA', 'BE', 'BG', 'CH', 'CZ', 'DE', 'DK', 'EE', 'ES', 'F
 focus_weights:
   # here fractions are set so that out of selected 180 nodes, 144 are German nodes and the rest is
   # distributed accordingly with one node per country zone (2 for DK, IT, GB, ES)
-  'DE': 0.6
   'AL': 0.0125
   'AT': 0.0125
   'BA': 0.0125
@@ -74,6 +70,7 @@ focus_weights:
   'BG': 0.0125
   'CH': 0.0125
   'CZ': 0.0125
+  'DE': 0.6000
   'DK': 0.0125
   'EE': 0.0125
   'ES': 0.0125
@@ -102,14 +99,14 @@ focus_weights:
 
 snapshots:
   start: "2013-01-01"
-  end: "2013-07-01"
+  end: "2014-01-01"
   inclusive: 'left' # include start, not end
 
 enable:
   prepare_links_p_nom: false
   retrieve_databundle: false
   retrieve_sector_databundle: false
-  retrieve_cost_data: false
+  retrieve_cost_data: true
   build_cutout: false
   retrieve_cutout: false
   build_natura_raster: false
@@ -403,7 +400,7 @@ sector:
       2030: 0.0
       2035: 0.3
       2040: 0.6
-      2050: 1.0
+      2045: 1.0
     district_heating_loss: 0.15
   cluster_heat_buses: false # cluster residential and service heat buses to one to save memory
   bev_dsm_restriction_value: 0.75  #Set to 0 for no restriction on BEV DSM
@@ -414,7 +411,7 @@ sector:
   ICE_upper_degree_factor: 1.6
   EV_lower_degree_factor: 0.98
   EV_upper_degree_factor: 0.63
-  bev_dsm: true #turns on EV battery
+  bev_dsm: false #turns on EV battery
   bev_availability: 0.5  #How many cars do smart charging
   bev_energy: 0.05  #average battery size in MWh
   bev_charge_efficiency: 0.9  #BEV (dis-)charging efficiency
@@ -422,23 +419,23 @@ sector:
   bev_charge_rate: 0.011 #3-phase charger with 11 kW
   bev_avail_max: 0.95
   bev_avail_mean: 0.8
-  v2g: true #allows feed-in to grid from EV battery
+  v2g: false #allows feed-in to grid from EV battery
   #what is not EV or FCEV is oil-fuelled ICE
   land_transport_fuel_cell_share:
     2030: 0
     2035: 0.05
     2040: 0.1
-    2050: 0.15
+    2045: 0.15
   land_transport_electric_share:
     2030: 0
     2035: 0.25
     2040: 0.6
-    2050: 0.85
+    2045: 0.85
   land_transport_ice_share:
     2030: 1
     2035: 0.7
     2040: 0.3
-    2050: 0
+    2045: 0
   transport_fuel_cell_efficiency: 0.5
   transport_internal_combustion_efficiency: 0.3
   agriculture_machinery_electric_share: 0
@@ -453,17 +450,17 @@ sector:
     2030: 0
     2035: 0
     2040: 0
-    2050: 0
+    2045: 0
   shipping_methanol_share:
     2030: 0
     2035: 0.3
     2040: 0.7
-    2050: 1
+    2045: 1
   shipping_oil_share:
     2030: 1
     2035: 0.7
     2040: 0.3
-    2050: 0
+    2045: 0
   shipping_methanol_efficiency: 0.46 # 10-15% higher https://www.iea-amf.org/app/webroot/files/file/Annex%20Reports/AMF_Annex_56.pdf, https://users.ugent.be/~lsileghe/documents/extended_abstract.pdf
   shipping_oil_efficiency: 0.40 #For conversion of fuel oil to propulsion in 2011
   aviation_demand_factor: 1. # relative aviation demand compared to today
