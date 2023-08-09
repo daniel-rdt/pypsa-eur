@@ -439,6 +439,11 @@ def add_heating_capacities_installed_before_baseyear(
                     + n.loads_t.p_set.sum()[f"{node} services rural heat"]
                 )
             )
+            # if rural heating demand for one of the nodes doesn't exist,
+            # then columns were dropped before and heating demand share should be 0.0
+            if (f"{node} residential rural heat" in n.loads_t.p_set.sum().index)
+               & (f"{node} services rural heat" in n.loads_t.p_set.sum().index)
+            else 0.0
             for node in nodal_df.index
         ],
         index=nodal_df.index,
@@ -601,11 +606,11 @@ if __name__ == "__main__":
         snakemake = mock_snakemake(
             "add_existing_baseyear",
             simpl="",
-            clusters="45",
-            ll="v1.0",
+            clusters="180",
+            ll="v1.5",
             opts="",
-            sector_opts="8760H-T-H-B-I-A-solar+p3-dist1",
-            planning_horizons=2020,
+            sector_opts="CO2L0-300H-T-H-B-I-A-solar+p3",
+            planning_horizons=2050,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
