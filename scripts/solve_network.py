@@ -651,14 +651,14 @@ if __name__ == "__main__":
         from _helpers import mock_snakemake
 
         snakemake = mock_snakemake(
-            "solve_sector_network",
+            "solve_sector_network_myopic",
             configfiles="config/config.yaml",
             simpl="",
             opts="",
             clusters="180",
-            ll="v1.0",
-            sector_opts="CO2L0-300H-T-H-B-I-A-solar+p3",
-            planning_horizons="2050",
+            ll="v1.5",
+            sector_opts="600H-T-H-B-I-A-solar+p3-cb30ex0",
+            planning_horizons="2035",
         )
     configure_logging(snakemake)
     if "sector_opts" in snakemake.wildcards.keys():

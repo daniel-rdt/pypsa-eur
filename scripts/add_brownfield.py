@@ -132,11 +132,11 @@ if __name__ == "__main__":
         snakemake = mock_snakemake(
             "add_brownfield",
             simpl="",
-            clusters="37",
+            clusters="180",
             opts="",
-            ll="v1.0",
-            sector_opts="168H-T-H-B-I-solar+p3-dist1",
-            planning_horizons=2030,
+            ll="v1.5",
+            sector_opts="600H-T-H-B-I-A-solar+p3-cb30ex0",
+            planning_horizons=2045,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
