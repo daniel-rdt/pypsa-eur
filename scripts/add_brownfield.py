@@ -106,7 +106,7 @@ def add_brownfield(n, n_p, year):
             # already retrofitted capacity from gas -> H2
             already_retrofitted = (
                 n.links.loc[h2_retrofitted_fixed_i, "p_nom"]
-                .rename(lambda x: x.split("-2")[0].replace(fr, to))
+                .rename(lambda x: f"{x.split('-2')[0].replace(fr, to)}-{year}")
                 .groupby(level=0)
                 .sum()
             )
