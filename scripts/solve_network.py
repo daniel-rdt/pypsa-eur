@@ -55,6 +55,11 @@ def _add_land_use_constraint(n):
     # warning: this will miss existing offwind which is not classed AC-DC and has carrier 'offwind'
 
     for carrier in ["solar", "onwind", "offwind-ac", "offwind-dc"]:
+        # set p_nom_min for renewables to 0 since for myopic existing capacities are already added in
+        # add_existing_baseyear. Otherwise, could lead to problems with existing caps larger than potential.
+        extendable_i = (n.generators.carrier == carrier) & n.generators.p_nom_extendable
+        n.generators.loc[extendable_i, "p_nom_min"] = 0
+
         ext_i = (n.generators.carrier == carrier) & ~n.generators.p_nom_extendable
         existing = (
             n.generators.loc[ext_i, "p_nom"]
@@ -657,7 +662,7 @@ if __name__ == "__main__":
             opts="",
             clusters="180",
             ll="v1.5",
-            sector_opts="600H-T-H-B-I-A-solar+p3-cb30ex0",
+            sector_opts="200H-T-H-B-I-A-solar+p3-cb30ex0",
             planning_horizons="2035",
         )
     configure_logging(snakemake)
