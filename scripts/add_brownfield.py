@@ -133,6 +133,15 @@ def add_brownfield(n, n_p, year):
         # drop both set of links
         n.mremove("Link", to_drop_gas.append(to_drop_h2_retro))
 
+        # for already retrofitted and newly build H2 pipelines, set p_nom_min as p_nom.
+        # Thus, H2 pipelines are not allowed to be build back before end of life
+        h2_new_fixed_i = n.links[
+            (n.links.carrier == "H2 pipeline")
+            & (n.links.build_year != year)
+        ].index
+        h2_fixed_i = h2_retrofitted_fixed_i.append(h2_new_fixed_i)
+        n.links.loc[h2_fixed_i, "p_nom_min"] = n.links.loc[h2_fixed_i, "p_nom"]
+
     else:
         new_pipes = n.links.carrier.isin(pipe_carrier) & (
             n.links.build_year == year
@@ -153,7 +162,7 @@ if __name__ == "__main__":
             opts="",
             ll="v1.5",
             sector_opts="800H-T-H-B-I-A-solar+p3",
-            planning_horizons=2035,
+            planning_horizons=2045,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
