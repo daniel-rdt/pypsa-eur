@@ -3299,7 +3299,7 @@ if __name__ == "__main__":
 
     spatial = define_spatial(pop_layout.index, options)
 
-    if snakemake.params.foresight == "myopic":
+    if snakemake.params.foresight in ["myopic", "myopic_stepwise"]:
         add_lifetime_wind_solar(n, costs)
 
         conventional = snakemake.params.conventional_carriers
@@ -3415,7 +3415,7 @@ if __name__ == "__main__":
     if options["electricity_grid_connection"]:
         add_electricity_grid_connection(n, costs)
 
-    first_year_myopic = (snakemake.params.foresight == "myopic") and (
+    first_year_myopic = (snakemake.params.foresight in ["myopic", "myopic_stepwise"]) and (
         snakemake.params.planning_horizons[0] == investment_year
     )
 

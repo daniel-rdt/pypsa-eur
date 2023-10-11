@@ -39,3 +39,15 @@ def solved_previous_horizon(wildcards):
         + planning_horizon_p
         + ".nc"
     )
+
+def solved_previous_horizon_stepwise(wildcards):
+    planning_horizons_all = config["scenario"]["planning_horizons_all"]
+    i = planning_horizons_all.index(int(wildcards.planning_horizons))
+    planning_horizon_p = str(planning_horizons_all[i - 1])
+    return (
+        RESULTS
+        + PRDIR
+        + "postnetworks/elec_s{simpl}_{clusters}_l{ll}_{opts}_{sector_opts}_"
+        + planning_horizon_p
+        + ".nc"
+    )

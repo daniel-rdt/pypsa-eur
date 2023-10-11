@@ -598,6 +598,15 @@ def add_heating_capacities_installed_before_baseyear(
             )
 
 
+def replace_gas_network(n):
+    pass
+
+def add_core_network(n):
+    pass
+
+def add_brownfield(n):
+    pass
+
 # %%
 if __name__ == "__main__":
     if "snakemake" not in globals():
@@ -609,8 +618,8 @@ if __name__ == "__main__":
             clusters="180",
             ll="v1.5",
             opts="",
-            sector_opts="CO2L0-300H-T-H-B-I-A-solar+p3",
-            planning_horizons=2050,
+            sector_opts="400H-T-H-B-I-A-solar+p3",
+            planning_horizons=2030,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
@@ -623,50 +632,69 @@ if __name__ == "__main__":
     baseyear = snakemake.params.baseyear
 
     overrides = override_component_attrs(snakemake.input.overrides)
-    n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
-    # define spatial resolution of carriers
-    spatial = define_spatial(n.buses[n.buses.carrier == "AC"].index, options)
-    add_build_year_to_new_assets(n, baseyear)
 
-    Nyears = n.snapshot_weightings.generators.sum() / 8760.0
-    costs = prepare_costs(
-        snakemake.input.costs,
-        snakemake.params.costs,
-        Nyears,
-    )
+    if snakemake.params.name_base == "None":
 
-    grouping_years_power = snakemake.params.existing_capacities["grouping_years_power"]
-    grouping_years_heat = snakemake.params.existing_capacities["grouping_years_heat"]
-    add_power_capacities_installed_before_baseyear(
-        n, grouping_years_power, costs, baseyear
-    )
+        n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
+        # define spatial resolution of carriers
+        spatial = define_spatial(n.buses[n.buses.carrier == "AC"].index, options)
 
-    if "H" in opts:
-        time_dep_hp_cop = options["time_dep_hp_cop"]
-        ashp_cop = (
-            xr.open_dataarray(snakemake.input.cop_air_total)
-            .to_pandas()
-            .reindex(index=n.snapshots)
-        )
-        gshp_cop = (
-            xr.open_dataarray(snakemake.input.cop_soil_total)
-            .to_pandas()
-            .reindex(index=n.snapshots)
-        )
-        default_lifetime = snakemake.params.costs["fill_values"]["lifetime"]
-        add_heating_capacities_installed_before_baseyear(
-            n,
-            baseyear,
-            grouping_years_heat,
-            ashp_cop,
-            gshp_cop,
-            time_dep_hp_cop,
-            costs,
-            default_lifetime,
+        Nyears = n.snapshot_weightings.generators.sum() / 8760.0
+        costs = prepare_costs(
+            snakemake.input.costs,
+            snakemake.params.costs,
+            Nyears,
         )
 
-    if options.get("cluster_heat_buses", False):
-        cluster_heat_buses(n)
+        add_build_year_to_new_assets(n, baseyear)
+
+        grouping_years_power = snakemake.params.existing_capacities["grouping_years_power"]
+        grouping_years_heat = snakemake.params.existing_capacities["grouping_years_heat"]
+        add_power_capacities_installed_before_baseyear(
+            n, grouping_years_power, costs, baseyear
+        )
+
+        # set existing renewable capacities to p_nom min instead of IRENA data
+
+        if "H" in opts:
+            time_dep_hp_cop = options["time_dep_hp_cop"]
+            ashp_cop = (
+                xr.open_dataarray(snakemake.input.cop_air_total)
+                .to_pandas()
+                .reindex(index=n.snapshots)
+            )
+            gshp_cop = (
+                xr.open_dataarray(snakemake.input.cop_soil_total)
+                .to_pandas()
+                .reindex(index=n.snapshots)
+            )
+            default_lifetime = snakemake.params.costs["fill_values"]["lifetime"]
+            add_heating_capacities_installed_before_baseyear(
+                n,
+                baseyear,
+                grouping_years_heat,
+                ashp_cop,
+                gshp_cop,
+                time_dep_hp_cop,
+                costs,
+                default_lifetime,
+            )
+
+        if options.get("cluster_heat_buses", False):
+            cluster_heat_buses(n)
+
+        # if set in config gas network can be replaced by custom gas network
+        if snakemake.params.gas_network_custom:
+            replace_gas_network(n)
+
+        # if set in config FNB H2 core network can be added as base infrastructure
+        if snakemake.params.H2_network_custom:
+            add_core_network(n)
+
+    else:
+
+        n = pypsa.Network(snakemake.input.network_p, override_component_attrs=overrides)
+        add_brownfield(n)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
 
