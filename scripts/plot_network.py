@@ -279,7 +279,7 @@ def plot_h2_map(network, regions):
 
     assign_location(n)
 
-    h2_storage = n.stores.query("carrier == 'H2'")
+    h2_storage = n.stores.query("carrier == 'H2 Store'")
     regions["H2"] = h2_storage.rename(
         index=h2_storage.bus.map(n.buses.location)
     ).e_nom_opt.div(
