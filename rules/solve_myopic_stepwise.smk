@@ -6,29 +6,36 @@
 rule add_existing_baseyear:
     params:
         baseyear=config["scenario"]["planning_horizons"][0],
-        name_base=config["run"]["name_base"],
+        name_base=config["run"].get("name_base"),
+        foresight=config["foresight"],
         sector=config["sector"],
         existing_capacities=config["existing_capacities"],
         costs=config["costs"],
+        H2_retrofit=config["sector"]["H2_retrofit"],
+        H2_retrofit_capacity_per_CH4=config["sector"]["H2_retrofit_capacity_per_CH4"],
+        threshold_capacity=config["existing_capacities"]["threshold_capacity"],
         H2_network_custom=config["sector"]["H2_network_custom"],
         gas_network_custom=config["sector"]["gas_network_custom"],
     input:
         overrides="data/override_component_attrs",
         network=RESULTS
         + "prenetworks/elec_s{simpl}_{clusters}_l{ll}_{opts}_{sector_opts}_{planning_horizons}.nc",
+        network_p= solved_previous_horizon_stepwise,#solved network at previous time step
+        costs = "data/costs_{planning_horizons}.csv",
+        cop_soil_total = RESOURCES + "cop_soil_total_elec_s{simpl}_{clusters}.nc",
+        cop_air_total = RESOURCES + "cop_air_total_elec_s{simpl}_{clusters}.nc",
         powerplants=RESOURCES + "powerplants.csv",
         busmap_s=RESOURCES + "busmap_elec_s{simpl}.csv",
         busmap=RESOURCES + "busmap_elec_s{simpl}_{clusters}.csv",
         clustered_pop_layout=RESOURCES + "pop_layout_elec_s{simpl}_{clusters}.csv",
-        costs="data/costs_{}.csv".format(config["scenario"]["planning_horizons"][0]),
-        cop_soil_total=RESOURCES + "cop_soil_total_elec_s{simpl}_{clusters}.nc",
-        cop_air_total=RESOURCES + "cop_air_total_elec_s{simpl}_{clusters}.nc",
         existing_heating="data/existing_infrastructure/existing_heating_raw.csv",
         existing_solar="data/existing_infrastructure/solar_capacity_IRENA.csv",
         existing_onwind="data/existing_infrastructure/onwind_capacity_IRENA.csv",
         existing_offwind="data/existing_infrastructure/offwind_capacity_IRENA.csv",
         # existing_gas_network="data/existing_infrastructure/custom_gas_network_base.csv",
         # existing_h2_core_network="data/existing_infrastructure/h2_core_network.csv",
+        # previous_gas_network="data/existing_infrastructure/gas_network_er_{planning_horizons}.csv",
+        # previous_h2_network="data/existing_infrastructure/h2_network_{planning_horizons}.csv",
     output:
         RESULTS
         + "prenetworks-brownfield/elec_s{simpl}_{clusters}_l{ll}_{opts}_{sector_opts}_{planning_horizons}.nc",
@@ -49,44 +56,6 @@ rule add_existing_baseyear:
         "../envs/environment.yaml"
     script:
         "../scripts/add_existing_baseyear.py"
-
-
-rule add_brownfield:
-    params:
-        H2_retrofit=config["sector"]["H2_retrofit"],
-        H2_retrofit_capacity_per_CH4=config["sector"]["H2_retrofit_capacity_per_CH4"],
-        threshold_capacity=config["existing_capacities"]["threshold_capacity"],
-    input:
-        overrides="data/override_component_attrs",
-        network=RESULTS
-        + "prenetworks/elec_s{simpl}_{clusters}_l{ll}_{opts}_{sector_opts}_{planning_horizons}.nc",
-        network_p=solved_previous_horizon,  #solved network at previous time step
-        costs="data/costs_{planning_horizons}.csv",
-        cop_soil_total=RESOURCES + "cop_soil_total_elec_s{simpl}_{clusters}.nc",
-        cop_air_total=RESOURCES + "cop_air_total_elec_s{simpl}_{clusters}.nc",
-        # existing_gas_network="data/existing_infrastructure/gas_network_er_{planning_horizons}.csv",
-        # existing_core_network="data/existing_infrastructure/h2_network_{planning_horizons}.csv",
-    output:
-        RESULTS
-        + "prenetworks-brownfield/elec_s{simpl}_{clusters}_l{ll}_{opts}_{sector_opts}_{planning_horizons}.nc",
-    threads: 4
-    resources:
-        mem_mb=10000,
-    log:
-        LOGS
-        + "add_brownfield_elec_s{simpl}_{clusters}_l{ll}_{opts}_{sector_opts}_{planning_horizons}.log",
-    benchmark:
-        (
-            BENCHMARKS
-            + "add_brownfield/elec_s{simpl}_{clusters}_l{ll}_{opts}_{sector_opts}_{planning_horizons}"
-        )
-    conda:
-        "../envs/environment.yaml"
-    script:
-        "../scripts/add_brownfield.py"
-
-
-ruleorder: add_existing_baseyear > add_brownfield
 
 
 rule solve_sector_network_myopic:

@@ -26,6 +26,7 @@ ATLITE_NPROCESSES = config["atlite"].get("nprocesses", 4)
 
 run = config.get("run", {})
 RDIR = run["name"] + "/" if run.get("name") else ""
+PRDIR = run["name_base"] + "/" if run.get("name_base") else ""
 CDIR = RDIR if not run.get("shared_cutouts") else ""
 
 LOGS = "logs/" + RDIR
@@ -63,6 +64,10 @@ if config["foresight"] == "overnight":
 if config["foresight"] == "myopic":
 
     include: "rules/solve_myopic.smk"
+
+if config["foresight"] == "myopic_stepwise":
+
+    include: "rules/solve_myopic_stepwise.smk"
 
 
 rule purge:

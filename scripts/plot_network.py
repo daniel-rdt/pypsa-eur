@@ -259,13 +259,14 @@ def group_pipes(df, drop_direction=False):
         df = pd.concat([df_p, df_n])
 
     # there are pipes for each investment period rename to AC buses name for plotting
+    df["index_orig"] = df.index
     df.index = df.apply(
         lambda x: f"H2 pipeline {x.bus0.replace(' H2', '')} -> {x.bus1.replace(' H2', '')}",
         axis=1,
     )
     # group pipe lines connecting the same buses and rename them for plotting
     pipe_capacity = df.groupby(level=0).agg(
-        {"p_nom_opt": sum, "bus0": "first", "bus1": "first"}
+        {"p_nom_opt": sum, "bus0": "first", "bus1": "first", "index_orig": "first"}
     )
 
     return pipe_capacity
@@ -278,7 +279,7 @@ def plot_h2_map(network, regions):
 
     assign_location(n)
 
-    h2_storage = n.stores.query("carrier == 'H2'")
+    h2_storage = n.stores.query("carrier == 'H2 Store'")
     regions["H2"] = h2_storage.rename(
         index=h2_storage.bus.map(n.buses.location)
     ).e_nom_opt.div(
@@ -313,36 +314,37 @@ def plot_h2_map(network, regions):
     h2_new = n.links[n.links.carrier == "H2 pipeline"]
     h2_retro = n.links[n.links.carrier == "H2 pipeline retrofitted"]
 
-    if snakemake.params.foresight == "myopic":
+    if snakemake.params.foresight in ["myopic", "myopic_stepwise"]:
         # sum capacitiy for pipelines from different investment periods
         h2_new = group_pipes(h2_new)
 
         if not h2_retro.empty:
             h2_retro = (
                 group_pipes(h2_retro, drop_direction=True)
-                .reindex(h2_new.index)
+                # .reindex(h2_new.index)
                 .fillna(0)
             )
 
     if not h2_retro.empty:
-        positive_order = h2_retro.bus0 < h2_retro.bus1
-        h2_retro_p = h2_retro[positive_order]
-        swap_buses = {"bus0": "bus1", "bus1": "bus0"}
-        h2_retro_n = h2_retro[~positive_order].rename(columns=swap_buses)
-        h2_retro = pd.concat([h2_retro_p, h2_retro_n])
+        if snakemake.params.foresight not in ["myopic", "myopic_stepwise"]:
+            positive_order = h2_retro.bus0 < h2_retro.bus1
+            h2_retro_p = h2_retro[positive_order]
+            swap_buses = {"bus0": "bus1", "bus1": "bus0"}
+            h2_retro_n = h2_retro[~positive_order].rename(columns=swap_buses)
+            h2_retro = pd.concat([h2_retro_p, h2_retro_n])
 
-        h2_retro["index_orig"] = h2_retro.index
-        h2_retro.index = h2_retro.apply(
-            lambda x: f"H2 pipeline {x.bus0.replace(' H2', '')} -> {x.bus1.replace(' H2', '')}",
-            axis=1,
-        )
+            h2_retro["index_orig"] = h2_retro.index
+            h2_retro.index = h2_retro.apply(
+                lambda x: f"H2 pipeline {x.bus0.replace(' H2', '')} -> {x.bus1.replace(' H2', '')}",
+                axis=1,
+            )
 
         retro_w_new_i = h2_retro.index.intersection(h2_new.index)
         h2_retro_w_new = h2_retro.loc[retro_w_new_i]
 
         retro_wo_new_i = h2_retro.index.difference(h2_new.index)
         h2_retro_wo_new = h2_retro.loc[retro_wo_new_i]
-        h2_retro_wo_new.index = h2_retro_wo_new.index_orig
+        h2_retro_wo_new.index = h2_retro_wo_new.index_orig.apply(lambda x: x.split('-2')[0])
 
         to_concat = [h2_new, h2_retro_w_new, h2_retro_wo_new]
         h2_total = pd.concat(to_concat).p_nom_opt.groupby(level=0).sum()
@@ -353,7 +355,9 @@ def plot_h2_map(network, regions):
     link_widths_total = h2_total / linewidth_factor
 
     n.links.rename(index=lambda x: x.split("-2")[0], inplace=True)
-    n.links = n.links.groupby(level=0).first()
+    # group links by summing up p_nom values and taking the first value of the rest of the columns
+    other_cols = dict.fromkeys(n.links.columns.drop(["p_nom_opt", "p_nom"]), "first")
+    n.links = n.links.groupby(level=0).agg({"p_nom_opt": sum, "p_nom": sum, **other_cols})
     link_widths_total = link_widths_total.reindex(n.links.index).fillna(0.0)
     link_widths_total[n.links.p_nom_opt < line_lower_threshold] = 0.0
 
@@ -923,9 +927,9 @@ if __name__ == "__main__":
             simpl="",
             opts="",
             clusters="180",
-            ll="v1.0",
-            sector_opts="Co2L0-300H-T-H-B-I-A-solar+p3-linemaxext10",
-            planning_horizons="2050",
+            ll="v1.5",
+            sector_opts="8760H-T-H-B-I-A-solar+p3-linemaxext10",
+            planning_horizons="2045",
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])

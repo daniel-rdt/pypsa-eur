@@ -23,36 +23,11 @@ import pypsa
 import xarray as xr
 from _helpers import override_component_attrs, update_config_with_sector_opts
 from prepare_sector_network import cluster_heat_buses, define_spatial, prepare_costs
+from add_brownfield import add_brownfield, add_build_year_to_new_assets
 
 cc = coco.CountryConverter()
 
 spatial = SimpleNamespace()
-
-
-def add_build_year_to_new_assets(n, baseyear):
-    """
-    Parameters
-    ----------
-    n : pypsa.Network
-    baseyear : int
-        year in which optimized assets are built
-    """
-    # Give assets with lifetimes and no build year the build year baseyear
-    for c in n.iterate_components(["Link", "Generator", "Store"]):
-        assets = c.df.index[(c.df.lifetime != np.inf) & (c.df.build_year == 0)]
-        c.df.loc[assets, "build_year"] = baseyear
-
-        # add -baseyear to name
-        rename = pd.Series(c.df.index, c.df.index)
-        rename[assets] += "-" + str(baseyear)
-        c.df.rename(index=rename, inplace=True)
-
-        # rename time-dependent
-        selection = n.component_attrs[c.name].type.str.contains(
-            "series"
-        ) & n.component_attrs[c.name].status.str.contains("Input")
-        for attr in n.component_attrs[c.name].index[selection]:
-            c.pnl[attr].rename(columns=rename, inplace=True)
 
 
 def add_existing_renewables(df_agg):
@@ -598,6 +573,32 @@ def add_heating_capacities_installed_before_baseyear(
             )
 
 
+def replace_gas_network(n):
+    """
+    Sets gas network pipeline capacities according to input gas network mapped to clustered nodes.
+    """
+    pass
+
+
+def replace_H2_network(n):
+    """
+    Sets H2 network pipeline capacities according to input gas network mapped to clustered nodes.
+    """
+    pass
+
+def _add_brownfield(n, year):
+    """
+    # Calls functions of add_brownfield and prepares network for next iteration step.
+    # """
+    logger.info(f"Preparing brownfield from the file {snakemake.input.network_p}")
+
+    add_build_year_to_new_assets(n, year)
+
+    n_p = pypsa.Network(snakemake.input.network_p, override_component_attrs=overrides)
+    # call add_bownfield function from myopic workflow to add previous year's optimization results
+    add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
+                   snakemake.params.H2_retrofit_capacity_per_CH4)
+
 # %%
 if __name__ == "__main__":
     if "snakemake" not in globals():
@@ -609,8 +610,8 @@ if __name__ == "__main__":
             clusters="180",
             ll="v1.5",
             opts="",
-            sector_opts="CO2L0-300H-T-H-B-I-A-solar+p3",
-            planning_horizons=2050,
+            sector_opts="8760H-T-H-B-I-A-solar+p3",
+            planning_horizons=2040,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
@@ -623,50 +624,67 @@ if __name__ == "__main__":
     baseyear = snakemake.params.baseyear
 
     overrides = override_component_attrs(snakemake.input.overrides)
-    n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
-    # define spatial resolution of carriers
-    spatial = define_spatial(n.buses[n.buses.carrier == "AC"].index, options)
-    add_build_year_to_new_assets(n, baseyear)
 
-    Nyears = n.snapshot_weightings.generators.sum() / 8760.0
-    costs = prepare_costs(
-        snakemake.input.costs,
-        snakemake.params.costs,
-        Nyears,
-    )
+    if (snakemake.params.name_base) and (snakemake.params.foresight=="myopic_stepwise"):
+        n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
+        _add_brownfield(n, baseyear)
 
-    grouping_years_power = snakemake.params.existing_capacities["grouping_years_power"]
-    grouping_years_heat = snakemake.params.existing_capacities["grouping_years_heat"]
-    add_power_capacities_installed_before_baseyear(
-        n, grouping_years_power, costs, baseyear
-    )
+    else:
+        n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
+        # define spatial resolution of carriers
+        spatial = define_spatial(n.buses[n.buses.carrier == "AC"].index, options)
 
-    if "H" in opts:
-        time_dep_hp_cop = options["time_dep_hp_cop"]
-        ashp_cop = (
-            xr.open_dataarray(snakemake.input.cop_air_total)
-            .to_pandas()
-            .reindex(index=n.snapshots)
-        )
-        gshp_cop = (
-            xr.open_dataarray(snakemake.input.cop_soil_total)
-            .to_pandas()
-            .reindex(index=n.snapshots)
-        )
-        default_lifetime = snakemake.params.costs["fill_values"]["lifetime"]
-        add_heating_capacities_installed_before_baseyear(
-            n,
-            baseyear,
-            grouping_years_heat,
-            ashp_cop,
-            gshp_cop,
-            time_dep_hp_cop,
-            costs,
-            default_lifetime,
+        Nyears = n.snapshot_weightings.generators.sum() / 8760.0
+        costs = prepare_costs(
+            snakemake.input.costs,
+            snakemake.params.costs,
+            Nyears,
         )
 
-    if options.get("cluster_heat_buses", False):
-        cluster_heat_buses(n)
+        add_build_year_to_new_assets(n, baseyear)
+
+        grouping_years_power = snakemake.params.existing_capacities["grouping_years_power"]
+        grouping_years_heat = snakemake.params.existing_capacities["grouping_years_heat"]
+        add_power_capacities_installed_before_baseyear(
+            n, grouping_years_power, costs, baseyear
+        )
+
+        # set existing renewable capacities to p_nom min instead of IRENA data
+
+        if "H" in opts:
+            time_dep_hp_cop = options["time_dep_hp_cop"]
+            ashp_cop = (
+                xr.open_dataarray(snakemake.input.cop_air_total)
+                .to_pandas()
+                .reindex(index=n.snapshots)
+            )
+            gshp_cop = (
+                xr.open_dataarray(snakemake.input.cop_soil_total)
+                .to_pandas()
+                .reindex(index=n.snapshots)
+            )
+            default_lifetime = snakemake.params.costs["fill_values"]["lifetime"]
+            add_heating_capacities_installed_before_baseyear(
+                n,
+                baseyear,
+                grouping_years_heat,
+                ashp_cop,
+                gshp_cop,
+                time_dep_hp_cop,
+                costs,
+                default_lifetime,
+            )
+
+        if options.get("cluster_heat_buses", False):
+            cluster_heat_buses(n)
+
+    # if set in config gas network can be replaced by custom gas network
+    if snakemake.params.gas_network_custom:
+        replace_gas_network(n)
+
+    # if set in config custom H2 network can be added as base infrastructure such as FNB H2 core network
+    if snakemake.params.H2_network_custom:
+        replace_H2_network(n)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
 

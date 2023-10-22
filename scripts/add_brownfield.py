@@ -17,10 +17,33 @@ idx = pd.IndexSlice
 import numpy as np
 import pypsa
 from _helpers import override_component_attrs, update_config_with_sector_opts
-from add_existing_baseyear import add_build_year_to_new_assets
 
+def add_build_year_to_new_assets(n, baseyear):
+    """
+    Parameters
+    ----------
+    n : pypsa.Network
+    baseyear : int
+        year in which optimized assets are built
+    """
+    # Give assets with lifetimes and no build year the build year baseyear
+    for c in n.iterate_components(["Link", "Generator", "Store"]):
+        assets = c.df.index[(c.df.lifetime != np.inf) & (c.df.build_year == 0)]
+        c.df.loc[assets, "build_year"] = baseyear
 
-def add_brownfield(n, n_p, year):
+        # add -baseyear to name
+        rename = pd.Series(c.df.index, c.df.index)
+        rename[assets] += "-" + str(baseyear)
+        c.df.rename(index=rename, inplace=True)
+
+        # rename time-dependent
+        selection = n.component_attrs[c.name].type.str.contains(
+            "series"
+        ) & n.component_attrs[c.name].status.str.contains("Input")
+        for attr in n.component_attrs[c.name].index[selection]:
+            c.pnl[attr].rename(columns=rename, inplace=True)
+
+def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_per_CH4):
     logger.info(f"Preparing brownfield for the year {year}")
 
     # electric transmission grid set optimised capacities of previous as minimum
@@ -48,8 +71,6 @@ def add_brownfield(n, n_p, year):
                 & c.df.index.str.contains("heat")
             )
         ]
-
-        threshold = snakemake.params.threshold_capacity
 
         if not chp_heat.empty:
             threshold_chp_heat = (
@@ -85,43 +106,69 @@ def add_brownfield(n, n_p, year):
         for tattr in n.component_attrs[c.name].index[selection]:
             n.import_series_from_dataframe(c.pnl[tattr], c.name, tattr)
 
-        # deal with gas network
-        pipe_carrier = ["gas pipeline"]
-        if snakemake.params.H2_retrofit:
-            # drop capacities of previous year to avoid duplicating
-            to_drop = n.links.carrier.isin(pipe_carrier) & (n.links.build_year != year)
-            n.mremove("Link", n.links.loc[to_drop].index)
+    # deal with gas network
+    pipe_carrier = ["gas pipeline"]
+    if H2_retrofit:
+        # drop capacities of previous year to avoid duplicating
+        to_drop = n.links.carrier.isin(pipe_carrier) & (n.links.build_year != year)
+        n.mremove("Link", n.links.loc[to_drop].index)
 
-            # subtract the already retrofitted from today's gas grid capacity
-            h2_retrofitted_fixed_i = n.links[
-                (n.links.carrier == "H2 pipeline retrofitted")
-                & (n.links.build_year != year)
-            ].index
-            gas_pipes_i = n.links[n.links.carrier.isin(pipe_carrier)].index
-            CH4_per_H2 = 1 / snakemake.params.H2_retrofit_capacity_per_CH4
-            fr = "H2 pipeline retrofitted"
-            to = "gas pipeline"
-            # today's pipe capacity
-            pipe_capacity = n.links.loc[gas_pipes_i, "p_nom"]
-            # already retrofitted capacity from gas -> H2
-            already_retrofitted = (
-                n.links.loc[h2_retrofitted_fixed_i, "p_nom"]
-                .rename(lambda x: x.split("-2")[0].replace(fr, to))
-                .groupby(level=0)
-                .sum()
-            )
-            remaining_capacity = (
-                pipe_capacity
-                - CH4_per_H2
-                * already_retrofitted.reindex(index=pipe_capacity.index).fillna(0)
-            )
-            n.links.loc[gas_pipes_i, "p_nom"] = remaining_capacity
-        else:
-            new_pipes = n.links.carrier.isin(pipe_carrier) & (
-                n.links.build_year == year
-            )
-            n.links.loc[new_pipes, "p_nom"] = 0.0
-            n.links.loc[new_pipes, "p_nom_min"] = 0.0
+        # subtract the already retrofitted from today's gas grid capacity
+        h2_retrofitted_fixed_i = n.links[
+            (n.links.carrier == "H2 pipeline retrofitted")
+            & (n.links.build_year != year)
+        ].index
+        gas_pipes_i = n.links[n.links.carrier.isin(pipe_carrier)].index
+        CH4_per_H2 = 1 / H2_retrofit_capacity_per_CH4
+        fr = "H2 pipeline retrofitted"
+        to = "gas pipeline"
+        # today's pipe capacity
+        pipe_capacity = n.links.loc[gas_pipes_i, "p_nom"]
+        # already retrofitted capacity from gas -> H2
+        already_retrofitted = (
+            n.links.loc[h2_retrofitted_fixed_i, "p_nom"]
+            .rename(lambda x: f"{x.split('-2')[0].replace(fr, to)}-{year}")
+            .groupby(level=0)
+            .sum()
+        )
+        remaining_capacity = (
+            pipe_capacity
+            - CH4_per_H2
+            * already_retrofitted.reindex(index=pipe_capacity.index).fillna(0)
+        )
+        n.links.loc[gas_pipes_i, "p_nom"] = remaining_capacity
+        # set p_nom_max to new p_nom value since pipelines can be retrofitted
+        n.links.loc[gas_pipes_i, "p_nom_max"] = n.links.loc[gas_pipes_i, "p_nom"]
+
+        # drop gas pipelines with capacity less than threshold due to infeasible size.
+        # Also drop corresponding H2 retro pipeline since can't be retrofitted anymore
+        to_drop_gas = (n.links.loc[gas_pipes_i]
+                       .query("p_nom < @threshold")
+                       .index
+                       )
+        to_drop_h2_retro = (n.links.loc[gas_pipes_i]
+                            .query("p_nom < @threshold")
+                            .rename(lambda x: f"{x.replace('gas pipeline', 'H2 pipeline retrofitted')}")
+                            .index
+                            )
+        # drop both set of links
+        n.mremove("Link", to_drop_gas.append(to_drop_h2_retro))
+
+        # for already retrofitted and newly build H2 pipelines, set p_nom_min as p_nom.
+        # Thus, H2 pipelines are not allowed to be build back before end of life
+        h2_new_fixed_i = n.links[
+            (n.links.carrier == "H2 pipeline")
+            & (n.links.build_year != year)
+        ].index
+        h2_fixed_i = h2_retrofitted_fixed_i.append(h2_new_fixed_i)
+        n.links.loc[h2_fixed_i, "p_nom_min"] = n.links.loc[h2_fixed_i, "p_nom"]
+
+    else:
+        new_pipes = n.links.carrier.isin(pipe_carrier) & (
+            n.links.build_year == year
+        )
+        n.links.loc[new_pipes, "p_nom"] = 0.0
+        n.links.loc[new_pipes, "p_nom_min"] = 0.0
 
 
 # %%
@@ -132,11 +179,11 @@ if __name__ == "__main__":
         snakemake = mock_snakemake(
             "add_brownfield",
             simpl="",
-            clusters="37",
+            clusters="180",
             opts="",
-            ll="v1.0",
-            sector_opts="168H-T-H-B-I-solar+p3-dist1",
-            planning_horizons=2030,
+            ll="v1.5",
+            sector_opts="800H-T-H-B-I-A-solar+p3",
+            planning_horizons=2045,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
@@ -154,7 +201,8 @@ if __name__ == "__main__":
 
     n_p = pypsa.Network(snakemake.input.network_p, override_component_attrs=overrides)
 
-    add_brownfield(n, n_p, year)
+    add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
+                   snakemake.params.H2_retrofit_capacity_per_CH4)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
     n.export_to_netcdf(snakemake.output[0])

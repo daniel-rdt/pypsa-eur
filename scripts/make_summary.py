@@ -710,7 +710,7 @@ if __name__ == "__main__":
 
     to_csv(df)
 
-    if snakemake.params.foresight == "myopic":
+    if snakemake.params.foresight in ["myopic", "myopic_stepwise"]:
         cumulative_cost = calculate_cumulative_cost()
         cumulative_cost.to_csv(
             "results/" + snakemake.params.RDIR + "/csvs/cumulative_cost.csv"

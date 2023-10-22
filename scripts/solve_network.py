@@ -55,6 +55,11 @@ def _add_land_use_constraint(n):
     # warning: this will miss existing offwind which is not classed AC-DC and has carrier 'offwind'
 
     for carrier in ["solar", "onwind", "offwind-ac", "offwind-dc"]:
+        # set p_nom_min for renewables to 0 since for myopic existing capacities are already added in
+        # add_existing_baseyear. Otherwise, could lead to problems with existing caps larger than potential.
+        extendable_i = (n.generators.carrier == carrier) & n.generators.p_nom_extendable
+        n.generators.loc[extendable_i, "p_nom_min"] = 0
+
         ext_i = (n.generators.carrier == carrier) & ~n.generators.p_nom_extendable
         existing = (
             n.generators.loc[ext_i, "p_nom"]
@@ -163,10 +168,10 @@ def prepare_network(
         # http://journal.frontiersin.org/article/10.3389/fenrg.2015.00055/full
         # TODO: retrieve color and nice name from config
         n.add("Carrier", "load", color="#dd2e23", nice_name="Load shedding")
-        buses_i = n.buses.query("carrier == 'AC'").index
+        buses_i = n.buses.index
         if not np.isscalar(load_shedding):
             # TODO: do not scale via sign attribute (use Eur/MWh instead of Eur/kWh)
-            load_shedding = 1e2  # Eur/kWh
+            load_shedding = 1e8  # Eur/kWh
 
         n.madd(
             "Generator",
@@ -198,7 +203,7 @@ def prepare_network(
         n.set_snapshots(n.snapshots[:nhours])
         n.snapshot_weightings[:] = 8760.0 / nhours
 
-    if foresight == "myopic":
+    if foresight in ["myopic", "myopic_stepwise"]:
         add_land_use_constraint(n, planning_horizons, config)
 
     if n.stores.carrier.eq("co2 stored").any():
@@ -641,6 +646,7 @@ def solve_network(n, config, solving, opts="", **kwargs):
             f"Solving status '{status}' with termination condition '{condition}'"
         )
     if "infeasible" in condition:
+        n.model.print_infeasibilities()
         raise RuntimeError("Solving status 'infeasible'")
 
     return n
@@ -651,14 +657,14 @@ if __name__ == "__main__":
         from _helpers import mock_snakemake
 
         snakemake = mock_snakemake(
-            "solve_sector_network",
+            "solve_sector_network_myopic",
             configfiles="config/config.yaml",
             simpl="",
             opts="",
             clusters="180",
-            ll="v1.0",
-            sector_opts="CO2L0-300H-T-H-B-I-A-solar+p3",
-            planning_horizons="2050",
+            ll="v1.5",
+            sector_opts="200H-T-H-B-I-A-solar+p3",
+            planning_horizons="2045",
         )
     configure_logging(snakemake)
     if "sector_opts" in snakemake.wildcards.keys():
