@@ -6,7 +6,8 @@
 rule add_existing_baseyear:
     params:
         baseyear=config["scenario"]["planning_horizons"][0],
-        name_base=config["run"]["name_base"],
+        name_base=config["run"].get("name_base"),
+        foresight=config["foresight"],
         sector=config["sector"],
         existing_capacities=config["existing_capacities"],
         costs=config["costs"],
@@ -19,7 +20,7 @@ rule add_existing_baseyear:
         overrides="data/override_component_attrs",
         network=RESULTS
         + "prenetworks/elec_s{simpl}_{clusters}_l{ll}_{opts}_{sector_opts}_{planning_horizons}.nc",
-        # network_p = solved_previous_horizon_stepwise,  #solved network at previous time step
+        network_p= solved_previous_horizon_stepwise,#solved network at previous time step
         costs = "data/costs_{planning_horizons}.csv",
         cop_soil_total = RESOURCES + "cop_soil_total_elec_s{simpl}_{clusters}.nc",
         cop_air_total = RESOURCES + "cop_air_total_elec_s{simpl}_{clusters}.nc",

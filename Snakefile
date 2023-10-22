@@ -26,7 +26,7 @@ ATLITE_NPROCESSES = config["atlite"].get("nprocesses", 4)
 
 run = config.get("run", {})
 RDIR = run["name"] + "/" if run.get("name") else ""
-PRDIR = run["name_base"] + "/" if run["name_base"] is not None else ""
+PRDIR = run["name_base"] + "/" if run.get("name_base") else ""
 CDIR = RDIR if not run.get("shared_cutouts") else ""
 
 LOGS = "logs/" + RDIR

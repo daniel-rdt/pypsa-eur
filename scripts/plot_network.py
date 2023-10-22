@@ -314,7 +314,7 @@ def plot_h2_map(network, regions):
     h2_new = n.links[n.links.carrier == "H2 pipeline"]
     h2_retro = n.links[n.links.carrier == "H2 pipeline retrofitted"]
 
-    if snakemake.params.foresight == "myopic":
+    if snakemake.params.foresight in ["myopic", "myopic_stepwise"]:
         # sum capacitiy for pipelines from different investment periods
         h2_new = group_pipes(h2_new)
 
@@ -326,7 +326,7 @@ def plot_h2_map(network, regions):
             )
 
     if not h2_retro.empty:
-        if snakemake.params.foresight != "myopic":
+        if snakemake.params.foresight not in ["myopic", "myopic_stepwise"]:
             positive_order = h2_retro.bus0 < h2_retro.bus1
             h2_retro_p = h2_retro[positive_order]
             swap_buses = {"bus0": "bus1", "bus1": "bus0"}
@@ -928,7 +928,7 @@ if __name__ == "__main__":
             opts="",
             clusters="180",
             ll="v1.5",
-            sector_opts="200H-T-H-B-I-A-solar+p3",
+            sector_opts="8760H-T-H-B-I-A-solar+p3-linemaxext10",
             planning_horizons="2045",
         )
 

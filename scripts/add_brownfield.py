@@ -17,10 +17,33 @@ idx = pd.IndexSlice
 import numpy as np
 import pypsa
 from _helpers import override_component_attrs, update_config_with_sector_opts
-from add_existing_baseyear import add_build_year_to_new_assets
 
+def add_build_year_to_new_assets(n, baseyear):
+    """
+    Parameters
+    ----------
+    n : pypsa.Network
+    baseyear : int
+        year in which optimized assets are built
+    """
+    # Give assets with lifetimes and no build year the build year baseyear
+    for c in n.iterate_components(["Link", "Generator", "Store"]):
+        assets = c.df.index[(c.df.lifetime != np.inf) & (c.df.build_year == 0)]
+        c.df.loc[assets, "build_year"] = baseyear
 
-def add_brownfield(n, n_p, year):
+        # add -baseyear to name
+        rename = pd.Series(c.df.index, c.df.index)
+        rename[assets] += "-" + str(baseyear)
+        c.df.rename(index=rename, inplace=True)
+
+        # rename time-dependent
+        selection = n.component_attrs[c.name].type.str.contains(
+            "series"
+        ) & n.component_attrs[c.name].status.str.contains("Input")
+        for attr in n.component_attrs[c.name].index[selection]:
+            c.pnl[attr].rename(columns=rename, inplace=True)
+
+def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_per_CH4):
     logger.info(f"Preparing brownfield for the year {year}")
 
     # electric transmission grid set optimised capacities of previous as minimum
@@ -48,8 +71,6 @@ def add_brownfield(n, n_p, year):
                 & c.df.index.str.contains("heat")
             )
         ]
-
-        threshold = snakemake.params.threshold_capacity
 
         if not chp_heat.empty:
             threshold_chp_heat = (
@@ -87,7 +108,7 @@ def add_brownfield(n, n_p, year):
 
     # deal with gas network
     pipe_carrier = ["gas pipeline"]
-    if snakemake.params.H2_retrofit:
+    if H2_retrofit:
         # drop capacities of previous year to avoid duplicating
         to_drop = n.links.carrier.isin(pipe_carrier) & (n.links.build_year != year)
         n.mremove("Link", n.links.loc[to_drop].index)
@@ -98,7 +119,7 @@ def add_brownfield(n, n_p, year):
             & (n.links.build_year != year)
         ].index
         gas_pipes_i = n.links[n.links.carrier.isin(pipe_carrier)].index
-        CH4_per_H2 = 1 / snakemake.params.H2_retrofit_capacity_per_CH4
+        CH4_per_H2 = 1 / H2_retrofit_capacity_per_CH4
         fr = "H2 pipeline retrofitted"
         to = "gas pipeline"
         # today's pipe capacity
@@ -180,7 +201,8 @@ if __name__ == "__main__":
 
     n_p = pypsa.Network(snakemake.input.network_p, override_component_attrs=overrides)
 
-    add_brownfield(n, n_p, year)
+    add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
+                   snakemake.params.H2_retrofit_capacity_per_CH4)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
     n.export_to_netcdf(snakemake.output[0])
