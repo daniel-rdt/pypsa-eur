@@ -651,10 +651,7 @@ def make_summaries(networks_dict):
         networks_dict.keys(), names=["cluster", "ll", "opt", "planning_horizon"]
     )
 
-    df = {}
-
-    for output in outputs:
-        df[output] = pd.DataFrame(columns=columns, dtype=float)
+    df = {output: pd.DataFrame(columns=columns, dtype=float) for output in outputs}
 
     for label, filename in networks_dict.items():
         logger.info(f"Make summary for scenario {label}, using {filename}")
