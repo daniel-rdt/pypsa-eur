@@ -42,6 +42,7 @@ from _helpers import (
 logger = logging.getLogger(__name__)
 pypsa.pf.logger.setLevel(logging.WARNING)
 from pypsa.descriptors import get_switchable_as_dense as get_as_dense
+from vresutils.benchmark import memory_logger
 
 
 def add_land_use_constraint(n, planning_horizons, config):
@@ -663,8 +664,8 @@ if __name__ == "__main__":
             opts="",
             clusters="180",
             ll="v1.5",
-            sector_opts="200H-T-H-B-I-A-solar+p3",
-            planning_horizons="2045",
+            sector_opts="8760H-T-H-B-I-A-solar+p3-linemaxext10",
+            planning_horizons="2030",
         )
     configure_logging(snakemake)
     if "sector_opts" in snakemake.wildcards.keys():
@@ -680,28 +681,31 @@ if __name__ == "__main__":
 
     np.random.seed(solve_opts.get("seed", 123))
 
-    if "overrides" in snakemake.input.keys():
-        overrides = override_component_attrs(snakemake.input.overrides)
-        n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
-    else:
-        n = pypsa.Network(snakemake.input.network)
+    fn_mem = snakemake.log["memory"]
+    with memory_logger(filename=fn_mem, interval=30.0) as mem:
 
-    n = prepare_network(
-        n,
-        solve_opts,
-        config=snakemake.config,
-        foresight=snakemake.params.foresight,
-        planning_horizons=snakemake.params.planning_horizons,
-        co2_sequestration_potential=snakemake.params["co2_sequestration_potential"],
-    )
+        if "overrides" in snakemake.input.keys():
+            overrides = override_component_attrs(snakemake.input.overrides)
+            n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
+        else:
+            n = pypsa.Network(snakemake.input.network)
 
-    n = solve_network(
-        n,
-        config=snakemake.config,
-        solving=snakemake.params.solving,
-        opts=opts,
-        log_fn=snakemake.log.solver,
-    )
+        n = prepare_network(
+            n,
+            solve_opts,
+            config=snakemake.config,
+            foresight=snakemake.params.foresight,
+            planning_horizons=snakemake.params.planning_horizons,
+            co2_sequestration_potential=snakemake.params["co2_sequestration_potential"],
+        )
 
-    n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
-    n.export_to_netcdf(snakemake.output[0])
+        n = solve_network(
+            n,
+            config=snakemake.config,
+            solving=snakemake.params.solving,
+            opts=opts,
+            log_fn=snakemake.log.solver,
+        )
+
+        n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
+        n.export_to_netcdf(snakemake.output[0])
