@@ -327,6 +327,21 @@ def create_network_topology(
         [n.lines[ln_attrs], n.links.loc[n.links.carrier.isin(carriers), lk_attrs]]
     ).fillna(0)
 
+    # for h2 network add connections to onshore regional neighbors to topology
+    # distances are center to center distances between the regions
+    if options.get("H2_network", True):
+        regions_neighbors = pd.read_parquet(snakemake.input.bus_regions_neighbors)
+        regions_distances = pd.read_csv(snakemake.input.bus_regions_centroid_distances, index_col=0)
+        for index, row in regions_neighbors.iterrows():
+            for neighbor in row.neighbors:
+                candidate = pd.DataFrame({
+                    "bus0": index,
+                    "bus1": neighbor,
+                    "length": regions_distances.at[index, neighbor],
+                    "underwater_fraction": 0.0}, index=[0])
+                candidates = pd.concat([candidates, candidate], ignore_index=True)
+
+
     # base network topology purely on location not carrier
     candidates["bus0"] = candidates.bus0.map(n.buses.location)
     candidates["bus1"] = candidates.bus1.map(n.buses.location)
@@ -338,6 +353,8 @@ def create_network_topology(
     candidates = pd.concat([candidates_p, candidates_n])
 
     def make_index(c):
+        if bidirectional:
+            connector = "<->"
         return prefix + c.bus0 + connector + c.bus1
 
     topo = candidates.groupby(["bus0", "bus1"], as_index=False).mean()
@@ -1152,7 +1169,11 @@ def add_storage_and_grids(n, costs):
     )
 
     if options["gas_network"] or options["H2_retrofit"]:
-        fn = snakemake.input.clustered_gas_network
+        if snakemake.params.gas_network_custom:
+            # option to add alternate gas network infrastructure
+            fn = snakemake.input.clustered_gas_network_custom
+        else:
+            fn = snakemake.input.clustered_gas_network
         gas_pipes = pd.read_csv(fn, index_col=0)
 
     if options["gas_network"]:
@@ -1172,6 +1193,11 @@ def add_storage_and_grids(n, costs):
                 gas_pipes.length * costs.at["CH4 (g) pipeline", "fixed"]
             )
 
+        if snakemake.params.fix_H2:
+            p_nom_extendable = False
+        else:
+            p_nom_extendable = True
+
         n.madd(
             "Link",
             gas_pipes.index,
@@ -1179,7 +1205,7 @@ def add_storage_and_grids(n, costs):
             bus1=gas_pipes.bus1 + " gas",
             p_min_pu=gas_pipes.p_min_pu,
             p_nom=gas_pipes.p_nom,
-            p_nom_extendable=True,
+            p_nom_extendable=p_nom_extendable,
             p_nom_max=gas_pipes.p_nom_max,
             p_nom_min=gas_pipes.p_nom_min,
             length=gas_pipes.length,
@@ -1256,6 +1282,11 @@ def add_storage_and_grids(n, costs):
         to = "H2 pipeline retrofitted"
         h2_pipes = gas_pipes.rename(index=lambda x: x.replace(fr, to))
 
+        if snakemake.params.fix_H2:
+            p_nom_extendable = False
+        else:
+            p_nom_extendable = True
+
         n.madd(
             "Link",
             h2_pipes.index,
@@ -1263,7 +1294,7 @@ def add_storage_and_grids(n, costs):
             bus1=h2_pipes.bus1 + " H2",
             p_min_pu=-1.0,  # allow that all H2 retrofit pipelines can be used in both directions
             p_nom_max=h2_pipes.p_nom * options["H2_retrofit_capacity_per_CH4"],
-            p_nom_extendable=True,
+            p_nom_extendable=p_nom_extendable,
             length=h2_pipes.length,
             capital_cost=costs.at["H2 (g) pipeline repurposed", "fixed"]
             * h2_pipes.length,
@@ -1279,6 +1310,11 @@ def add_storage_and_grids(n, costs):
             n, "H2 pipeline ", carriers=["DC", "gas pipeline"]
         )
 
+        if snakemake.params.fix_H2:
+            p_nom_extendable = False
+        else:
+            p_nom_extendable = True
+
         # TODO Add efficiency losses
         n.madd(
             "Link",
@@ -1286,7 +1322,7 @@ def add_storage_and_grids(n, costs):
             bus0=h2_pipes.bus0.values + " H2",
             bus1=h2_pipes.bus1.values + " H2",
             p_min_pu=-1,
-            p_nom_extendable=True,
+            p_nom_extendable=p_nom_extendable,
             length=h2_pipes.length.values,
             capital_cost=costs.at["H2 (g) pipeline", "fixed"] * h2_pipes.length.values,
             carrier="H2 pipeline",
@@ -3264,8 +3300,8 @@ if __name__ == "__main__":
             opts="",
             clusters="180",
             ll="v1.5",
-            sector_opts="8760H-T-H-B-I-A-solar+p3-cb30ex0",
-            planning_horizons="2030",
+            sector_opts="200H-T-H-B-I-A-solar+p3",
+            planning_horizons="2045",
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
