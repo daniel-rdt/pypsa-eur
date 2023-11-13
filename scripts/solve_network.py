@@ -241,8 +241,7 @@ def add_CCL_constraints(n, config):
     p_nom = n.model["Generator-p_nom"]
 
     gens = n.generators.query("p_nom_extendable").rename_axis(index="Generator-ext")
-    grouper = [gens.bus.map(n.buses.country), gens.carrier]
-    grouper = xr.DataArray(pd.MultiIndex.from_arrays(grouper), dims=["Generator-ext"])
+    grouper = pd.concat([gens.bus.map(n.buses.country), gens.carrier])
     lhs = p_nom.groupby(grouper).sum().rename(bus="country")
 
     minimum = xr.DataArray(agg_p_nom_minmax["min"].dropna()).rename(dim_0="group")
@@ -287,13 +286,13 @@ def add_EQ_constraints(n, o, scaling=1e-1):
     float_regex = "[0-9]*\.?[0-9]+"
     level = float(re.findall(float_regex, o)[0])
     if o[-1] == "c":
-        ggrouper = n.generators.bus.map(n.buses.country).to_xarray()
-        lgrouper = n.loads.bus.map(n.buses.country).to_xarray()
-        sgrouper = n.storage_units.bus.map(n.buses.country).to_xarray()
+        ggrouper = n.generators.bus.map(n.buses.country)
+        lgrouper = n.loads.bus.map(n.buses.country)
+        sgrouper = n.storage_units.bus.map(n.buses.country)
     else:
-        ggrouper = n.generators.bus.to_xarray()
-        lgrouper = n.loads.bus.to_xarray()
-        sgrouper = n.storage_units.bus.to_xarray()
+        ggrouper = n.generators.bus
+        lgrouper = n.loads.bus
+        sgrouper = n.storage_units.bus
     load = (
         n.snapshot_weightings.generators
         @ n.loads_t.p_set.groupby(lgrouper, axis=1).sum()
@@ -307,7 +306,7 @@ def add_EQ_constraints(n, o, scaling=1e-1):
     p = n.model["Generator-p"]
     lhs_gen = (
         (p * (n.snapshot_weightings.generators * scaling))
-        .groupby(ggrouper)
+        .groupby(ggrouper.to_xarray())
         .sum()
         .sum("snapshot")
     )
@@ -316,7 +315,7 @@ def add_EQ_constraints(n, o, scaling=1e-1):
         spillage = n.model["StorageUnit-spill"]
         lhs_spill = (
             (spillage * (-n.snapshot_weightings.stores * scaling))
-            .groupby(sgrouper)
+            .groupby(sgrouper.to_xarray())
             .sum()
             .sum("snapshot")
         )
@@ -682,7 +681,7 @@ if __name__ == "__main__":
     np.random.seed(solve_opts.get("seed", 123))
 
     fn_mem = snakemake.log["memory"]
-    with memory_logger(filename=fn_mem, interval=30.0) as mem:
+    with memory_logger(filename=fn_mem, interval=5.0) as mem:
 
         if "overrides" in snakemake.input.keys():
             overrides = override_component_attrs(snakemake.input.overrides)
