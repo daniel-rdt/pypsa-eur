@@ -662,9 +662,9 @@ if __name__ == "__main__":
             simpl="",
             opts="",
             clusters="180",
-            ll="v1.5",
-            sector_opts="8760H-T-H-B-I-A-solar+p3-linemaxext10",
-            planning_horizons="2030",
+            ll="vopt",
+            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
+            planning_horizons="2035",
         )
     configure_logging(snakemake)
     if "sector_opts" in snakemake.wildcards.keys():
