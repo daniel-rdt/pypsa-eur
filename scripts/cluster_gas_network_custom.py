@@ -39,28 +39,30 @@ def load_bus_regions(onshore_path, offshore_path):
     return bus_regions
 
 
-def load_custom_gas_network(path):
+def load_custom_gas_network(path, **indexcol):
     """
     Loads and cleans custom gas network dataset.
     """
-    df = pd.read_csv(path, decimal=",", sep=";", index_col=0)
+    df = pd.read_csv(path, decimal=",", sep=";", **indexcol)
     # drop columns that are not needed
-    df.drop(columns=["node0", "node1", "node0_x", "node0_y", "node1_x", "node1_y"], inplace=True)
+    to_drop = list(set(df.columns).intersection({"From_Node", "To_Node", "node0_pypsa_region", "node1_pypsa_region", "node0", "node1", "node0_x", "node0_y", "node1_x", "node1_y"}))
+    df.drop(columns=to_drop, inplace=True)
     # turn coordinates into points and drop redundant columns
     df["point0"] = gpd.points_from_xy(df.node0_long, df.node0_lat)
     df["point1"] = gpd.points_from_xy(df.node1_long, df.node1_lat)
     df.drop(columns=["node0_long", "node0_lat", "node1_long", "node1_lat"], inplace=True)
     # convert from GWh/day to MWh/h
-    df["cap_per_day_p80_GWh"] = df.cap_per_day_p80_GWh * 1e3 / 24
+    cap_col = list(set(df.columns).intersection({"CH4_80bar_GWh_d", "Cap_H2_GWh_d", "Cap_CH4_GWh_d"}))[0]
+    df[cap_col] = df[cap_col] * 1e3 / 24
     # rename columns to pypsa names
-    df.rename(columns={"cap_per_day_p80_GWh": "p_nom", "diameter": "diameter_mm"}, inplace=True)
+    df.rename(columns={cap_col: "p_nom", "diameter": "diameter_mm"}, inplace=True)
     # set all pipes in custom dataset as bidirectional
-    df["bidirectional"] = 1
+    df["bidirectional"] = True
 
     return df
 
 
-def build_clustered_gas_network(df, bus_regions, length_factor=1.25):
+def build_clustered_gas_network(df, bus_regions, length_factor=1.25, **kwargs):
     for i in [0, 1]:
         gdf = gpd.GeoDataFrame(geometry=df[f"point{i}"], crs="EPSG:4326")
 
@@ -78,6 +80,13 @@ def build_clustered_gas_network(df, bus_regions, length_factor=1.25):
             bus_regions.to_crs(3035).centroid.to_crs(4326)
         )
 
+    # drop control valves, valves and compressor stations
+    if "type" in df.columns:
+        df = df.loc[df.type == "pipe"]
+    else:
+        pipes = ~((df.name.str.startswith("VA")) | (df.name.str.startswith("CV")) | (df.name.str.startswith("CS")))
+        df = df.loc[pipes]
+
     # drop pipes where not both buses are inside regions
     df = df.loc[~df.bus0.isna() & ~df.bus1.isna()]
 
@@ -92,11 +101,20 @@ def build_clustered_gas_network(df, bus_regions, length_factor=1.25):
     )
 
     # tidy and create new numbered index
-    # df["line"] = df.apply(lambda row: LineString([row['point0'], row['point1']]), axis=1) #Create a linestring column
     df.drop(["point0", "point1"], axis=1, inplace=True)
     df.reset_index(drop=True, inplace=True)
 
-    reindex_pipes(df)
+    def swap_buses(df):
+        # create positive order of buses for bidirectional links
+        positive_order = (df.bus0 < df.bus1) | (~df.bidirectional)
+        df_p = df[positive_order]
+        swap_buses = {"bus0": "bus1", "bus1": "bus0"}
+        df_n = df[~positive_order].rename(columns=swap_buses)
+        return pd.concat([df_p, df_n])
+
+    df = swap_buses(df)
+
+    reindex_pipes(df, **kwargs)
 
     strategies = {
         "bus0": "first",
@@ -112,10 +130,13 @@ def build_clustered_gas_network(df, bus_regions, length_factor=1.25):
     return df
 
 
-def reindex_pipes(df):
+def reindex_pipes(df, carrier="gas pipeline", year=""):
     def make_index(x):
         connector = " <-> " if x.bidirectional else " -> "
-        return "gas pipeline " + x.bus0 + connector + x.bus1
+        if year:
+            return f"{carrier} " + x.bus0 + connector + x.bus1 + f"-{year}"
+        else:
+            return f"{carrier} " + x.bus0 + connector + x.bus1
 
     df.index = df.apply(make_index, axis=1)
 
@@ -187,9 +208,9 @@ if __name__ == "__main__":
 
     fn_custom = snakemake.input.gas_network_custom
     fn = snakemake.input.cleaned_gas_network
-    df = pd.read_csv(fn, index_col=0)
+    df_default = pd.read_csv(fn, index_col=0)
     for col in ["point0", "point1"]:
-        df[col] = df[col].apply(wkt.loads)
+        df_default[col] = df_default[col].apply(wkt.loads)
 
     df_custom = load_custom_gas_network(fn_custom)
 
@@ -200,7 +221,7 @@ if __name__ == "__main__":
     offshore_regions = gpd.read_file(snakemake.input.regions_offshore).set_index("name")
 
     # clustered gas network from old dataset
-    gas_network = build_clustered_gas_network(df, bus_regions)
+    gas_network = build_clustered_gas_network(df_default, bus_regions)
 
     # clustered gas network from custom addition
     gas_network_custom = build_clustered_gas_network(df_custom, bus_regions)

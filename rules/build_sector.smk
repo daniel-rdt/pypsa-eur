@@ -132,20 +132,20 @@ if config["sector"]["gas_network"] or config["sector"]["H2_retrofit"]:
         **rules.build_gas_input_locations.output,
     }
 
-    if (config["sector"]["gas_network_custom"]):
+    if config["sector"]["gas_network_custom"]:
 
         rule cluster_gas_network_custom:
             input:
                 cleaned_gas_network=RESOURCES + "gas_network.csv",
-                gas_network_custom="data/DE22_mParallel_capacities.csv",
+                gas_network_custom="data/gas_network/rcm/IPA_DE22.csv",
                 regions_onshore=RESOURCES
                 + "regions_onshore_elec_s{simpl}_{clusters}.geojson",
                 regions_offshore=RESOURCES
                 + "regions_offshore_elec_s{simpl}_{clusters}.geojson",
             output:
                 clustered_gas_network_custom=RESOURCES + "gas_network_elec_s{simpl}_{clusters}_custom.csv",
-                bus_regions_neighbors=RESOURCES + "bus_regions_{simpl}_{clusters}_neighbors.parquet",
-                bus_regions_centroid_distances=RESOURCES + "bus_regions_{simpl}_{clusters}_centroid_distances.csv",
+                bus_regions_neighbors=RESOURCES + "bus_regions_s{simpl}_{clusters}_neighbors.parquet",
+                bus_regions_centroid_distances=RESOURCES + "bus_regions_s{simpl}_{clusters}_centroid_distances.csv",
             resources:
                 mem_mb=4000,
             log:
@@ -161,7 +161,7 @@ if config["sector"]["gas_network"] or config["sector"]["H2_retrofit"]:
         }
 
 if not (config["sector"]["gas_network"] or config["sector"]["H2_retrofit"]):
-    # this is effecively an `else` statement which is however not liked by snakefmt
+    # this is effectively an `else` statement which is however not liked by snakefmt
 
     gas_infrastructure = {}
 
