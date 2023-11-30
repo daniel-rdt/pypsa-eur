@@ -2,10 +2,53 @@
 #
 # SPDX-License-Identifier: MIT
 
+if config["sector"]["H2_network_custom"]:
+    rule cluster_h2_custom:
+        params:
+            baseyear=config["scenario"]["planning_horizons"][0],
+            H2_network_custom=config["sector"]["H2_network_custom"],
+            gas_network_custom=config["sector"]["gas_network_custom"],
+            fix_H2=config["scenario"]["fix_H2"],
+        input:
+            onshore_regions=RESOURCES + "regions_onshore_elec_s{simpl}_{clusters}.geojson",
+            gas_network_custom = "data_exchange/gas_network_custom_{planning_horizons}.csv",
+            h2_network_custom_new = "data_exchange/h2_network_new_custom_{planning_horizons}.csv",
+            h2_network_custom_retro = "data_exchange/h2_network_retro_custom_{planning_horizons}.csv",
+        output:
+            clustered_h2_retro_custom=RESOURCES + "clustered_h2_network_retro_custom_s{simpl}_{clusters}_{planning_horizons}.csv",
+            clustered_h2_new_custom=RESOURCES + "clustered_h2_network_new_custom_s{simpl}_{clusters}_{planning_horizons}.csv",
+            clustered_gas_custom=RESOURCES + "clustered_gas_network_custom_s{simpl}_{clusters}_{planning_horizons}.csv",
+        wildcard_constraints:
+            planning_horizons=config["scenario"]["planning_horizons"][0],#only applies to baseyear
+        threads: 1
+        resources:
+            mem_mb=2000,
+        log:
+            LOGS
+            + "cluster_h2_custom_s{simpl}_{clusters}_{planning_horizons}.log",
+        benchmark:
+            (
+                    BENCHMARKS
+                    + "cluster_h2_custom/elec_s{simpl}_{clusters}_{planning_horizons}"
+            )
+        conda:
+            "../envs/environment.yaml"
+        script:
+            "../scripts/cluster_h2_custom.py"
+
+    h2_infrastructure = {
+        **rules.cluster_h2_custom.output,
+    }
+
+if not config["sector"]["H2_network_custom"]:
+    # this is effectively an `else` statement which is however not liked by snakefmt
+
+    h2_infrastructure = {}
 
 rule add_existing_baseyear:
     params:
         baseyear=config["scenario"]["planning_horizons"][0],
+        planning_horizons=config["scenario"]["planning_horizons_all"],
         name_base=config["run"].get("name_base"),
         foresight=config["foresight"],
         sector=config["sector"],
@@ -16,12 +59,14 @@ rule add_existing_baseyear:
         threshold_capacity=config["existing_capacities"]["threshold_capacity"],
         H2_network_custom=config["sector"]["H2_network_custom"],
         gas_network_custom=config["sector"]["gas_network_custom"],
+        fix_H2=config["scenario"]["fix_H2"],
     input:
         overrides="data/override_component_attrs",
         network=RESULTS
         + "prenetworks/elec_s{simpl}_{clusters}_l{ll}_{opts}_{sector_opts}_{planning_horizons}.nc",
         network_p= solved_previous_horizon_stepwise,#solved network at previous time step
         costs = "data/costs_{planning_horizons}.csv",
+        onshore_regions = RESOURCES + "regions_onshore_elec_s{simpl}_{clusters}.geojson",
         cop_soil_total = RESOURCES + "cop_soil_total_elec_s{simpl}_{clusters}.nc",
         cop_air_total = RESOURCES + "cop_air_total_elec_s{simpl}_{clusters}.nc",
         powerplants=RESOURCES + "powerplants.csv",
@@ -32,10 +77,7 @@ rule add_existing_baseyear:
         existing_solar="data/existing_infrastructure/solar_capacity_IRENA.csv",
         existing_onwind="data/existing_infrastructure/onwind_capacity_IRENA.csv",
         existing_offwind="data/existing_infrastructure/offwind_capacity_IRENA.csv",
-        # existing_gas_network="data/existing_infrastructure/custom_gas_network_base.csv",
-        # existing_h2_core_network="data/existing_infrastructure/h2_core_network.csv",
-        # previous_gas_network="data/existing_infrastructure/gas_network_er_{planning_horizons}.csv",
-        # previous_h2_network="data/existing_infrastructure/h2_network_{planning_horizons}.csv",
+        **h2_infrastructure,
     output:
         RESULTS
         + "prenetworks-brownfield/elec_s{simpl}_{clusters}_l{ll}_{opts}_{sector_opts}_{planning_horizons}.nc",
