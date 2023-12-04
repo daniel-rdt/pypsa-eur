@@ -98,6 +98,17 @@ def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_pe
         c.df[attr + "_nom"] = c.df[attr + "_nom_opt"]
         c.df[attr + "_nom_extendable"] = False
 
+        # option to build back FT by factor
+        if options.get("build_back_FT_factor"):
+            if c.name == "Link":
+                logger.info(f"Allow for Fischer-Tropsch build back down to {(1-options.get('build_back_FT_factor'))*100}% of p_nom_opt.")
+                c.df.loc[c.df.carrier == "Fischer-Tropsch", [attr + "_nom_extendable"]] = True
+                c.df.loc[c.df.carrier == "Fischer-Tropsch", [attr + "_nom_max"]] = c.df.loc[
+                    c.df.carrier == "Fischer-Tropsch", attr + "_nom_opt"]
+                c.df.loc[c.df.carrier == "Fischer-Tropsch", [attr + "_nom_min"]] = c.df.loc[
+                    c.df.carrier == "Fischer-Tropsch", attr + "_nom_opt"] * (1-options.get("build_back_FT_factor"))
+
+
         n.import_components_from_dataframe(c.df, c.name)
 
         # copy time-dependent
@@ -177,8 +188,8 @@ if __name__ == "__main__":
             simpl="",
             clusters="180",
             opts="",
-            ll="v1.5",
-            sector_opts="800H-T-H-B-I-A-solar+p3",
+            ll="vopt",
+            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
             planning_horizons=2045,
         )
 
@@ -189,6 +200,8 @@ if __name__ == "__main__":
     logger.info(f"Preparing brownfield from the file {snakemake.input.network_p}")
 
     year = int(snakemake.wildcards.planning_horizons)
+
+    options = snakemake.params.sector
 
     overrides = override_component_attrs(snakemake.input.overrides)
     n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
