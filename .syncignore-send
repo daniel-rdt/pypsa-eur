@@ -15,9 +15,7 @@ __pycache__
 notebooks
 benchmarks
 logs
-resources*
 results
-networks*
-cutouts
-data/bundle
 doc
+data_exchange
+zenodo.org
