@@ -1719,6 +1719,25 @@ def add_heat(n, costs):
             unit="MWh_th",
         )
 
+        if name == "urban central" and options.get("central_heat_vent"):
+            n.madd(
+                "Bus",
+                nodes[name] + f" {name} heat vent",
+                location=nodes[name],
+                carrier=name + " heat vent",
+                unit="MWh_th",
+            )
+            n.madd(
+                "Generator",
+                nodes[name] + f" {name} heat vent",
+                bus=nodes[name] + f" {name} heat vent",
+                carrier=name + " heat vent",
+                p_nom_extendable=True,
+                p_max_pu=0,
+                p_min_pu=-1,
+                unit="MWh_th",
+            )
+
         ## Add heat load
 
         for sector in sectors:
@@ -2706,6 +2725,7 @@ def add_industry(n, costs):
                 lifetime=costs.at["decentral oil boiler", "lifetime"],
             )
 
+    # TODO: add bus4 to capture co2 from atmosphere for process?
     n.madd(
         "Link",
         nodes + " Fischer-Tropsch",
@@ -2923,6 +2943,33 @@ def add_waste_heat(n):
                 0.95 - n.links.loc[urban_central + " H2 Fuel Cell", "efficiency"]
             )
 
+# def add_heat_vents(n):
+#     """
+#     if option heat_vent is True, add heat vents to buses with district heating for unusable but committed waste heat.
+#     """
+#
+#     # AC buses with district heating
+#     urban_central = n.buses.index[n.buses.carrier == "urban central heat"]
+#     # if buses with district heating exist, add heat vents
+#     if not urban_central.empty:
+#         logger.info("Add heat vents in district heating to allow for venting process heat")
+#
+#         urban_central = urban_central.str[: -len(" urban central heat")]
+#
+#         # add heat atmosphere carrier and bus
+#         n.add("Carrier", "vented heat")
+#         n.add("Bus", "heat atmosphere", location="EU", carrier="vented heat", unit="MWh_th")
+#
+#         # add heat vents
+#         n.madd(
+#             "Generator",
+#             urban_central + " heat vent",
+#             bus0=urban_central + " urban central heat",
+#             bus1="heat atmosphere",
+#             carrier="vented heat",
+#             efficiency=1.0,
+#             p_nom_extendable=True,
+#         )
 
 def add_agriculture(n, costs):
     logger.info("Add agriculture, forestry and fishing sector.")
@@ -3369,6 +3416,8 @@ if __name__ == "__main__":
 
     if "I" in opts and "H" in opts:
         add_waste_heat(n)
+        # if options.get("heat_vent"):
+        #     add_heat_vents(n)
 
     if "A" in opts:  # requires H and I
         add_agriculture(n, costs)

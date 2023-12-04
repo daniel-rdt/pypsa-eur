@@ -53,6 +53,7 @@ rule add_existing_baseyear:
 
 rule add_brownfield:
     params:
+        sector=config["sector"],
         H2_retrofit=config["sector"]["H2_retrofit"],
         H2_retrofit_capacity_per_CH4=config["sector"]["H2_retrofit_capacity_per_CH4"],
         threshold_capacity=config["existing_capacities"]["threshold_capacity"],
