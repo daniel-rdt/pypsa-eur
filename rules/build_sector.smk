@@ -84,6 +84,8 @@ if config["sector"]["gas_network"] or config["sector"]["H2_retrofit"]:
             "../scripts/build_gas_network.py"
 
     rule build_gas_input_locations:
+        params:
+            cutoff_gas_supply=config["scenario"]["cutoff_gas_supply"],
         input:
             lng=HTTP.remote(
                 "https://globalenergymonitor.org/wp-content/uploads/2022/09/Europe-Gas-Tracker-August-2022.xlsx",

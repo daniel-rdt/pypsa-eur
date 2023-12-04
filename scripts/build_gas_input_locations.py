@@ -55,6 +55,14 @@ def build_gas_input_locations(lng_fn, entry_fn, prod_fn, countries):
         | (entry.from_country == "NO")  # malformed datapoint  # entries from NO to GB
     ]
 
+    # if set in config, filter out all gas interconnectors from outside pypsa-eur scope to cutoff gas supply
+    # e.g. Russian gas supply
+    if snakemake.params.cutoff_gas_supply:
+        entry = entry.loc[
+            (~entry.from_country.isin(snakemake.params.cutoff_gas_supply))
+            & (~entry.to_country.isin(snakemake.params.cutoff_gas_supply))
+            ]
+
     # production sites inside the model scope
     prod = read_scigrid_gas(prod_fn)
     prod = prod.loc[
@@ -83,7 +91,7 @@ if __name__ == "__main__":
         snakemake = mock_snakemake(
             "build_gas_input_locations",
             simpl="",
-            clusters="37",
+            clusters="180",
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
