@@ -261,7 +261,7 @@ def group_pipes(df, drop_direction=False):
     # there are pipes for each investment period rename to AC buses name for plotting
     df["index_orig"] = df.index
     df.index = df.apply(
-        lambda x: f"H2 pipeline {x.bus0.replace(' H2', '')} -> {x.bus1.replace(' H2', '')}",
+        lambda x: f"H2 pipeline {x.bus0.replace(' H2', '')} <-> {x.bus1.replace(' H2', '')}",
         axis=1,
     )
     # group pipelines connecting the same buses and rename them for plotting
@@ -288,7 +288,7 @@ def plot_h2_map(network, regions):
     )
     regions["H2"] = regions["H2"].where(regions["H2"] > 0.1)
 
-    bus_size_factor = 1e5
+    bus_size_factor = 4e4
     linewidth_factor = 7e3
     # MW below which not drawn
     line_lower_threshold = 750
