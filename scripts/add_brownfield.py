@@ -177,8 +177,8 @@ if __name__ == "__main__":
             simpl="",
             clusters="180",
             opts="",
-            ll="v1.5",
-            sector_opts="800H-T-H-B-I-A-solar+p3",
+            ll="vopt",
+            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
             planning_horizons=2045,
         )
 

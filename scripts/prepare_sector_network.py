@@ -2701,6 +2701,27 @@ def add_industry(n, costs):
             marginal_cost=costs.at["oil", "fuel"],
         )
 
+    if options.get("oil_vent"):
+        logger.info("Add oil vent")
+        n.madd(
+            "Bus",
+            pd.Index(spatial.oil.nodes) + f" vent",
+            location=spatial.oil.locations,
+            carrier="oil",
+            unit="MWh_LHV",
+        )
+
+        n.madd(
+            "Generator",
+            pd.Index(spatial.oil.nodes) + f" vent",
+            bus=pd.Index(spatial.oil.nodes) + f" vent",
+            carrier="oil",
+            p_nom_extendable=True,
+            p_max_pu=0,
+            p_min_pu=-1,
+            unit="MWh_LHV",
+        )
+
     if options["oil_boilers"]:
         nodes_heat = create_nodes_for_heat_sector()[0]
 
@@ -2943,33 +2964,6 @@ def add_waste_heat(n):
                 0.95 - n.links.loc[urban_central + " H2 Fuel Cell", "efficiency"]
             )
 
-# def add_heat_vents(n):
-#     """
-#     if option heat_vent is True, add heat vents to buses with district heating for unusable but committed waste heat.
-#     """
-#
-#     # AC buses with district heating
-#     urban_central = n.buses.index[n.buses.carrier == "urban central heat"]
-#     # if buses with district heating exist, add heat vents
-#     if not urban_central.empty:
-#         logger.info("Add heat vents in district heating to allow for venting process heat")
-#
-#         urban_central = urban_central.str[: -len(" urban central heat")]
-#
-#         # add heat atmosphere carrier and bus
-#         n.add("Carrier", "vented heat")
-#         n.add("Bus", "heat atmosphere", location="EU", carrier="vented heat", unit="MWh_th")
-#
-#         # add heat vents
-#         n.madd(
-#             "Generator",
-#             urban_central + " heat vent",
-#             bus0=urban_central + " urban central heat",
-#             bus1="heat atmosphere",
-#             carrier="vented heat",
-#             efficiency=1.0,
-#             p_nom_extendable=True,
-#         )
 
 def add_agriculture(n, costs):
     logger.info("Add agriculture, forestry and fishing sector.")
@@ -3333,7 +3327,7 @@ if __name__ == "__main__":
             clusters="180",
             ll="vopt",
             sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
-            planning_horizons="2030",
+            planning_horizons="2040",
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
@@ -3416,8 +3410,6 @@ if __name__ == "__main__":
 
     if "I" in opts and "H" in opts:
         add_waste_heat(n)
-        # if options.get("heat_vent"):
-        #     add_heat_vents(n)
 
     if "A" in opts:  # requires H and I
         add_agriculture(n, costs)
