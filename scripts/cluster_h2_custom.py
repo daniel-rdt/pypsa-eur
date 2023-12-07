@@ -17,6 +17,10 @@ def load_and_cluster(**fns):
     for fn_name, fn in fns.items():
         # load network
         df = load_custom_gas_network(fn)
+        # filter for baseyear (only add new pipelines)
+        # TODO: add option to choose if only new pipelines should be exchanged
+        if "build_year" in df.columns:
+            df = df.loc[df.build_year == baseyear]
         gdf = add_geometries(df, onshore_regions, map=False)
         # cluster network
         if "retro" in fn_name:
@@ -44,7 +48,7 @@ if __name__ == "__main__":
             ll="vopt",
             opts="",
             sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
-            planning_horizons=2030,
+            planning_horizons=2035,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])

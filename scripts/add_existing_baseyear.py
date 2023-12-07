@@ -442,13 +442,13 @@ def add_heating_capacities_installed_before_baseyear(
     for name in names:
         name_type = "central" if name == "urban central" else "decentral"
         nodes[name] = pd.Index(
-            [
+            np.unique([
                 n.buses.at[index, "location"]
                 for index in n.buses.index[
                     n.buses.index.str.contains(name)
                     & n.buses.index.str.contains("heat")
                 ]
-            ]
+            ])
         )
         heat_pump_type = "air" if "urban" in name else "ground"
         heat_type = "residential" if "residential" in name else "services"
@@ -632,7 +632,8 @@ def set_H2_network(n, fn_new, fn_retro):
         n.links.loc[
             (n.links.carrier.isin(carrier))
             & (n.links.bus0.str.startswith("DE"))
-            & (n.links.bus1.str.startswith("DE")),
+            & (n.links.bus1.str.startswith("DE"))
+            & (n.links.index.str.contains(str(baseyear))),
             p_noms] = 0.0
     else:
         # else set only p_nom_min so h2 infrastructure will be the minimum but can be extended further if optimal
@@ -673,7 +674,7 @@ if __name__ == "__main__":
             ll="vopt",
             opts="",
             sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
-            planning_horizons=2035,
+            planning_horizons=2045,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
