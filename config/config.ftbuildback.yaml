@@ -523,7 +523,6 @@ sector:
   coal_cc: false
   dac: true
   co2_vent: false
-  central_heat_vent: true
   allam_cycle: false
   hydrogen_fuel_cell: true
   hydrogen_turbine: false
@@ -933,7 +932,6 @@ plotting:
     rural heat: '#ff5c5c'
     central heat: '#cc1f1f'
     urban central heat: '#d15959'
-    urban central heat vent: '#a74747'
     decentral heat: '#750606'
     low-temperature heat for industry: '#8f2727'
     process heat: '#ff0000'
