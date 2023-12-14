@@ -709,6 +709,98 @@ def add_co2limit(n, nyears=1.0, limit=0.0):
     )
 
 
+def add_FT_limit(n, last_year):
+    logger.info(f"Adding Fischer-Tropsch limit for myopic pathway to not surpass FT capacity of last year.")
+
+    nodes = pop_layout.index
+
+    # ================================================
+    # calculate land transport oil demand for last year
+    # ================================================
+    ice_share = get(options["land_transport_ice_share"], last_year)
+    if ice_share:
+        transport = pd.read_csv(
+            snakemake.input.transport_demand, index_col=0, parse_dates=True
+        )
+        ice_efficiency = options["transport_internal_combustion_efficiency"]
+        land_transport_oil = (ice_share / ice_efficiency * transport[nodes]).sum().sum()
+    else:
+        land_transport_oil = 0.0
+
+    # ================================================
+    # calculate shipping oil demand
+    # ================================================
+    shipping_oil_share = get(options["shipping_oil_share"], last_year)
+    if shipping_oil_share:
+        domestic_navigation = pop_weighted_energy_totals.loc[
+            nodes, "total domestic navigation"
+        ].squeeze()
+        international_navigation = (
+                pd.read_csv(snakemake.input.shipping_demand, index_col=0).squeeze() * nyears
+        )
+        all_navigation = domestic_navigation + international_navigation
+        shipping_oil = shipping_oil_share * (all_navigation * 1e6 / nhours).sum()
+    else:
+        shipping_oil = 0.0
+
+    # ================================================
+    # calculate naphtha for industry oil demand
+    # ================================================
+    demand_factor = options.get("HVC_demand_factor", 1)
+    industrial_demand = (
+                                pd.read_csv(
+                                    snakemake.input.industrial_demand.replace(str(investment_year), str(last_year)),
+                                    index_col=0) * 1e6
+                        ) * nyears
+    naphtha_oil = demand_factor * industrial_demand.loc[nodes, "naphtha"].sum() / nhours
+
+    # ================================================
+    # calculate kerosene for aviation oil demand
+    # ================================================
+    demand_factor = options.get("aviation_demand_factor", 1)
+    all_aviation = ["total international aviation", "total domestic aviation"]
+    kerosene_oil = (
+            demand_factor
+            * pop_weighted_energy_totals.loc[nodes, all_aviation].sum(axis=1).sum()
+            * 1e6
+            / nhours
+    )
+
+    # ================================================
+    # calculate agriculture machinery oil demand
+    # ================================================
+    oil_share = get(options["agriculture_machinery_oil_share"], last_year)
+    if oil_share > 0:
+        machinery_nodal_energy = pop_weighted_energy_totals.loc[
+            nodes, "total agriculture machinery"
+        ]
+        machinery_oil = oil_share * machinery_nodal_energy.sum() * 1e6 / nhours
+    else:
+        machinery_oil = 0.0
+
+    # ================================================
+    # calculate total oil demand and FT capacity
+    # ================================================
+
+    # total oil demand in last year in MW
+    total_oil = land_transport_oil + shipping_oil + naphtha_oil + kerosene_oil + machinery_oil
+
+    # FT capacity limit in MW
+    efficiency = costs.at["Fischer-Tropsch", "efficiency"]
+    ft_limit = total_oil / efficiency
+
+    # ================================================
+    # add global constraint
+    # ================================================
+    n.add(
+        "GlobalConstraint",
+        "FT_limit",
+        sense="<=",
+        constant=ft_limit,
+        type="link_capacity_expansion_limit",
+        carrier_attribute="Fischer-Tropsch",
+    )
+
 # TODO PyPSA-Eur merge issue
 def average_every_nhours(n, offset):
     logger.info(f"Resampling the network to {offset}")
@@ -3280,13 +3372,13 @@ if __name__ == "__main__":
 
         snakemake = mock_snakemake(
             "prepare_sector_network",
-            configfiles="config/config.yaml",
+            configfiles="config/config.ftlimit.yaml",
             simpl="",
             opts="",
             clusters="180",
             ll="vopt",
             sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
-            planning_horizons="2030",
+            planning_horizons="2040",
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
@@ -3442,6 +3534,14 @@ if __name__ == "__main__":
 
     if options.get("cluster_heat_buses", False) and not first_year_myopic:
         cluster_heat_buses(n)
+
+    if options.get("fischer_tropsch_limit"):
+        if snakemake.params.foresight == "myopic_stepwise":
+            last_year = snakemake.params.planning_horizons_all[-1]
+        elif snakemake.params.foresight == "myopic":
+            last_year = snakemake.params.planning_horizons[-1]
+
+        add_FT_limit(n, last_year)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
 

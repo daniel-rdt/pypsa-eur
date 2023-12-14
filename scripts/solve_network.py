@@ -574,6 +574,19 @@ def add_pipe_retrofit_constraint(n):
 
     n.model.add_constraints(lhs == rhs, name="Link-pipe_retrofit")
 
+def add_ft_limit_constraint(n):
+    ft_links_ext_i = n.links.query("carrier == 'Fischer-Tropsch' and p_nom_extendable").index
+    ft_links_old_i = n.links.query("carrier == 'Fischer-Tropsch' and not p_nom_extendable").index
+    p_nom = n.model["Link-p_nom"]
+    lhs = p_nom.loc[ft_links_ext_i].sum() + n.links.p_nom[ft_links_old_i].rename_axis("Link-ext").sum()
+    glcs = n.global_constraints.loc[
+        lambda df: (df.type == "link_capacity_expansion_limit") & (df.carrier_attribute == "Fischer-Tropsch")
+    ]
+    rhs = glcs.constant[0]
+
+    n.model.add_constraints(lhs <= rhs, name="Link-ft_limit")
+
+
 
 def extra_functionality(n, snapshots):
     """
@@ -600,6 +613,7 @@ def extra_functionality(n, snapshots):
             add_EQ_constraints(n, o)
     add_battery_constraints(n)
     add_pipe_retrofit_constraint(n)
+    add_ft_limit_constraint(n)
 
 
 def solve_network(n, config, solving, opts="", **kwargs):
@@ -658,13 +672,13 @@ if __name__ == "__main__":
 
         snakemake = mock_snakemake(
             "solve_sector_network_myopic",
-            configfiles="config/config.yaml",
+            configfiles="config/config.ftlimit.yaml",
             simpl="",
             opts="",
             clusters="180",
             ll="vopt",
-            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
-            planning_horizons="2035",
+            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
+            planning_horizons="2045",
         )
     configure_logging(snakemake)
     if "sector_opts" in snakemake.wildcards.keys():
