@@ -744,6 +744,7 @@ rule prepare_sector_network:
         pypsa_eur=config["pypsa_eur"],
         length_factor=config["lines"]["length_factor"],
         planning_horizons=config["scenario"]["planning_horizons"],
+        planning_horizons_all=config["scenario"]["planning_horizons_all"],
         countries=config["countries"],
         emissions_scope=config["energy"]["emissions"],
         eurostat_report_year=config["energy"]["eurostat_report_year"],

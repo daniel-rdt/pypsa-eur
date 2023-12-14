@@ -3436,9 +3436,12 @@ if __name__ == "__main__":
     if options["electricity_grid_connection"]:
         add_electricity_grid_connection(n, costs)
 
-    first_year_myopic = (snakemake.params.foresight in ["myopic", "myopic_stepwise"]) and (
+    first_year_myopic = (snakemake.params.foresight in ["myopic"]) and (
         snakemake.params.planning_horizons[0] == investment_year
     )
+
+    if snakemake.params.foresight == "myopic_stepwise":
+        first_year_myopic = (snakemake.params.planning_horizons_all[0] == investment_year)
 
     if options.get("cluster_heat_buses", False) and not first_year_myopic:
         cluster_heat_buses(n)
