@@ -10,7 +10,7 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "20231213_myopic_200h_path2_2040_2045" # use this to keep track of runs with different settings
+  name: "20231213_myopic_200h_path2_2030_2035_2040_2045" # use this to keep track of runs with different settings
   name_base: "" # option for myopic_stepwise foresight. Set to empty str for first time step, otherwise set str to name of base run
   disable_progressbar: false # set to true to disable the progressbar
   shared_resources: true # set to true to share the default resources across runs
@@ -39,8 +39,8 @@ scenario:
 #  - 8760H-T-H-B-I-A-solar+p3
   planning_horizons:
 #  - 2020
-#  - 2030
-#  - 2035
+  - 2030
+  - 2035
   - 2040
   - 2045
   planning_horizons_all:
