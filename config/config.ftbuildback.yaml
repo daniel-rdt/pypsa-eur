@@ -10,7 +10,7 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "20231213_myopic_FT_build_back_50%_200h_2030_2035_2040_2045" # use this to keep track of runs with different settings
+  name: "20231215_myopic_FT_build_back_50%_200h_2030_2035_2040_2045" # use this to keep track of runs with different settings
   name_base: "" # option for myopic_stepwise foresight. Set to empty str for first time step, otherwise set str to name of base run
   disable_progressbar: false # set to true to disable the progressbar
   shared_resources: true # set to true to share the default resources across runs
@@ -627,7 +627,7 @@ industry:
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#costs
 costs:
   year: 2030
-  version: v0.5.0
+  version: a630127 # 0.6.2
   rooftop_share: 0.14  # based on the potentials, assuming  (0.1 kW/m2 and 10 m2/person)
   fill_values:
     FOM: 0
