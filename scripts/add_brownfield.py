@@ -102,12 +102,15 @@ def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_pe
         if options.get("build_back_FT_factor"):
             if c.name == "Link":
                 logger.info(f"Allow for Fischer-Tropsch build back down to {(1-options.get('build_back_FT_factor'))*100}% of p_nom_opt.")
-                c.df.loc[c.df.carrier == "Fischer-Tropsch", [attr + "_nom_extendable"]] = True
-                c.df.loc[c.df.carrier == "Fischer-Tropsch", [attr + "_nom_max"]] = c.df.loc[
-                    c.df.carrier == "Fischer-Tropsch", attr + "_nom_opt"]
-                c.df.loc[c.df.carrier == "Fischer-Tropsch", [attr + "_nom_min"]] = c.df.loc[
-                    c.df.carrier == "Fischer-Tropsch", attr + "_nom_opt"] * (1-options.get("build_back_FT_factor"))
-
+                ft_i = (c.df.carrier == "Fischer-Tropsch")
+                bb_ft_factor = options.get("build_back_FT_factor")
+                # set p_nom_extendable back to true to allow for build back
+                c.df.loc[ft_i, [attr + "_nom_extendable"]] = True
+                # limit to build back by setting p_nom_max to former p_nom_opt value
+                c.df.loc[ft_i, [attr + "_nom_max"]] = c.df.loc[ft_i, attr + "_nom_opt"]
+                # set build back range according to build_back_FT_factor
+                c.df.loc[ft_i, [attr + "_nom_min"]] = c.df.loc[ft_i, attr + "_nom_opt"] * (1 - bb_ft_factor)
+                # stranded assets costs are then capex of build back capacities minus FOM
 
         n.import_components_from_dataframe(c.df, c.name)
 
