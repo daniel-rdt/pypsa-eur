@@ -1721,16 +1721,9 @@ def add_heat(n, costs):
 
         if name == "urban central" and options.get("central_heat_vent"):
             n.madd(
-                "Bus",
-                nodes[name] + f" {name} heat vent",
-                location=nodes[name],
-                carrier=name + " heat vent",
-                unit="MWh_th",
-            )
-            n.madd(
                 "Generator",
                 nodes[name] + f" {name} heat vent",
-                bus=nodes[name] + f" {name} heat vent",
+                bus=nodes[name] + f" {name} heat",
                 carrier=name + " heat vent",
                 p_nom_extendable=True,
                 p_max_pu=0,
@@ -2703,18 +2696,11 @@ def add_industry(n, costs):
 
     if options.get("oil_vent"):
         logger.info("Add oil vent")
-        n.madd(
-            "Bus",
-            pd.Index(spatial.oil.nodes) + f" vent",
-            location=spatial.oil.locations,
-            carrier="oil",
-            unit="MWh_LHV",
-        )
 
         n.madd(
             "Generator",
             pd.Index(spatial.oil.nodes) + f" vent",
-            bus=pd.Index(spatial.oil.nodes) + f" vent",
+            bus=pd.Index(spatial.oil.nodes),
             carrier="oil",
             p_nom_extendable=True,
             p_max_pu=0,
