@@ -10,14 +10,14 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "20231215_myopic_FT_build_back_50%_200h_2030_2035_2040_2045" # use this to keep track of runs with different settings
+  name: "20231225_H2_myopic_stepwise_23h_2030" # use this to keep track of runs with different settings
   name_base: "" # option for myopic_stepwise foresight. Set to empty str for first time step, otherwise set str to name of base run
   disable_progressbar: false # set to true to disable the progressbar
   shared_resources: true # set to true to share the default resources across runs
   shared_cutouts: true # set to true to share the default cutout(s) across runs
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#foresight
-foresight: myopic
+foresight: myopic_stepwise
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#scenario
 # Wildcard docs in https://pypsa-eur.readthedocs.io/en/latest/wildcards.html
@@ -34,19 +34,19 @@ scenario:
   - ''
   sector_opts:
 #  - 200H-T-H-B-I-A-solar+p3-linemaxext10
-  - 200H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4
+  - 23H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4
 #  - 200H-T-H-B-I-A-solar+p3-linemaxext10-gas+m2
 #  - 8760H-T-H-B-I-A-solar+p3
   planning_horizons:
 #  - 2020
   - 2030
-  - 2035
-  - 2040
-  - 2045
+#  - 2035
+#  - 2040
+#  - 2045
   planning_horizons_all:
   - 2030
   - 2035
-#  - 2040
+  - 2040
   - 2045
   fix_H2: false # set if H2 network should be fixed with constraint in myopic_stepwise run
   cutoff_gas_supply: ["RU", "BY", "UA"] # list of countries which gas supply is cut off or false if no cutoff
