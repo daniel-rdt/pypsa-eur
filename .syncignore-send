@@ -17,5 +17,6 @@ benchmarks
 logs
 results
 doc
-data_exchange
+data_exchange_pypsa
 zenodo.org
+h2_net_comparison
