@@ -291,7 +291,7 @@ def plot_h2_map(network, regions):
     bus_size_factor = 4e4
     linewidth_factor = 7e3
     # MW below which not drawn
-    line_lower_threshold = 750
+    line_lower_threshold = 62
 
     # Drop non-electric buses so they don't clutter the plot
     n.buses.drop(n.buses.index[n.buses.carrier != "AC"], inplace=True)
@@ -931,7 +931,7 @@ if __name__ == "__main__":
             opts="",
             clusters="180",
             ll="vopt",
-            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
+            sector_opts="1460SEG-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
             planning_horizons="2030",
         )
 

@@ -10,7 +10,7 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "20231225_H2_myopic_stepwise_23h_2030" # use this to keep track of runs with different settings
+  name: "20240101_myopic_stepwise_1460SEG_default_demand_2030" # use this to keep track of runs with different settings
   name_base: "" # option for myopic_stepwise foresight. Set to empty str for first time step, otherwise set str to name of base run
   disable_progressbar: false # set to true to disable the progressbar
   shared_resources: true # set to true to share the default resources across runs
@@ -34,7 +34,7 @@ scenario:
   - ''
   sector_opts:
 #  - 200H-T-H-B-I-A-solar+p3-linemaxext10
-  - 23H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4
+  - 1460SEG-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4
 #  - 200H-T-H-B-I-A-solar+p3-linemaxext10-gas+m2
 #  - 8760H-T-H-B-I-A-solar+p3
   planning_horizons:
@@ -750,7 +750,7 @@ solving:
     cbc-default: {} # Used in CI
     glpk-default: {} # Used in CI
 
-  mem: 350000 #memory in MB; 20 GB enough for 50+B+I+H2; 100 GB for 181+B+I+H2
+  mem: 600000 #memory in MB; 20 GB enough for 50+B+I+H2; 100 GB for 181+B+I+H2
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#plotting
 plotting:
