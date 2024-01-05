@@ -17,5 +17,6 @@ doc
 cutouts
 data
 benchmarks
-*.nc
+resources
 configs
+zenodo.org

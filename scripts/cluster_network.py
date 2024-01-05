@@ -89,7 +89,7 @@ Description
     **Is it possible to run the model without the** ``simplify_network`` **rule?**
 
         No, the network clustering methods in the PyPSA module
-        `pypsa.networkclustering <https://github.com/PyPSA/PyPSA/blob/master/pypsa/networkclustering.py>`_
+        `pypsa.clustering.spatial <https://github.com/PyPSA/PyPSA/blob/master/pypsa/clustering/spatial.py>`_
         do not work reliably with multiple voltage levels and transformers.
 
 .. tip::
@@ -133,8 +133,8 @@ import pandas as pd
 import pyomo.environ as po
 import pypsa
 import seaborn as sns
-from _helpers import configure_logging, get_aggregation_strategies, update_p_nom_max
-from pypsa.networkclustering import (
+from _helpers import configure_logging, update_p_nom_max
+from pypsa.clustering.spatial import (
     busmap_by_greedy_modularity,
     busmap_by_hac,
     busmap_by_kmeans,
@@ -395,10 +395,6 @@ def clustering_for_n_clusters(
     extended_link_costs=0,
     focus_weights=None,
 ):
-    bus_strategies, generator_strategies = get_aggregation_strategies(
-        aggregation_strategies
-    )
-
     if not isinstance(custom_busmap, pd.Series):
         busmap = busmap_for_n_clusters(
             n, n_clusters, solver_name, focus_weights, algorithm, feature
@@ -406,15 +402,20 @@ def clustering_for_n_clusters(
     else:
         busmap = custom_busmap
 
+    line_strategies = aggregation_strategies.get("lines", dict())
+    generator_strategies = aggregation_strategies.get("generators", dict())
+    one_port_strategies = aggregation_strategies.get("one_ports", dict())
+
     clustering = get_clustering_from_busmap(
         n,
         busmap,
-        bus_strategies=bus_strategies,
         aggregate_generators_weighted=True,
         aggregate_generators_carriers=aggregate_carriers,
         aggregate_one_ports=["Load", "StorageUnit"],
         line_length_factor=line_length_factor,
+        line_strategies=line_strategies,
         generator_strategies=generator_strategies,
+        one_port_strategies=one_port_strategies,
         scale_link_capital_costs=False,
     )
 
@@ -484,7 +485,7 @@ if __name__ == "__main__":
         # Fast-path if no clustering is necessary
         busmap = n.buses.index.to_series()
         linemap = n.lines.index.to_series()
-        clustering = pypsa.networkclustering.Clustering(
+        clustering = pypsa.clustering.spatial.Clustering(
             n, busmap, linemap, linemap, pd.Series(dtype="O")
         )
     else:

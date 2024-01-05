@@ -96,8 +96,7 @@ from _helpers import configure_logging, get_aggregation_strategies, update_p_nom
 from add_electricity import load_costs
 from cluster_network import cluster_regions, clustering_for_n_clusters
 from pypsa.io import import_components_from_dataframe, import_series_from_dataframe
-from pypsa.networkclustering import (
-    aggregategenerators,
+from pypsa.clustering.spatial import (
     aggregateoneport,
     busmap_by_stubs,
     get_clustering_from_busmap,
@@ -253,11 +252,15 @@ def _aggregate_and_move_components(
 
     _adjust_capital_costs_using_connection_costs(n, connection_costs_to_bus, output)
 
-    _, generator_strategies = get_aggregation_strategies(aggregation_strategies)
+    generator_strategies = aggregation_strategies["generators"]
 
     carriers = set(n.generators.carrier) - set(exclude_carriers)
-    generators, generators_pnl = aggregategenerators(
-        n, busmap, carriers=carriers, custom_strategies=generator_strategies
+    generators, generators_pnl = aggregateoneport(
+        n,
+        busmap,
+        "Generator",
+        carriers=carriers,
+        custom_strategies=generator_strategies,
     )
 
     replace_components(n, "Generator", generators, generators_pnl)
@@ -478,19 +481,20 @@ def aggregate_to_substations(n, aggregation_strategies=dict(), buses_i=None):
     busmap = n.buses.index.to_series()
     busmap.loc[buses_i] = dist.idxmin(1)
 
-    bus_strategies, generator_strategies = get_aggregation_strategies(
-        aggregation_strategies
-    )
+    line_strategies = aggregation_strategies.get("lines", dict())
+    generator_strategies = aggregation_strategies.get("generators", dict())
+    one_port_strategies = aggregation_strategies.get("one_ports", dict())
 
     clustering = get_clustering_from_busmap(
         n,
         busmap,
-        bus_strategies=bus_strategies,
         aggregate_generators_weighted=True,
         aggregate_generators_carriers=None,
         aggregate_one_ports=["Load", "StorageUnit"],
         line_length_factor=1.0,
+        line_strategies=line_strategies,
         generator_strategies=generator_strategies,
+        one_port_strategies=one_port_strategies,
         scale_link_capital_costs=False,
     )
     return clustering.network, busmap
@@ -609,14 +613,17 @@ if __name__ == "__main__":
 
     # some entries in n.buses are not updated in previous functions, therefore can be wrong. as they are not needed
     # and are lost when clustering (for example with the simpl wildcard), we remove them for consistency:
-    buses_c = {
+    remove = [
         "symbol",
         "tags",
         "under_construction",
         "substation_lv",
         "substation_off",
-    }.intersection(n.buses.columns)
-    n.buses = n.buses.drop(buses_c, axis=1)
+        "geometry",
+        "underground",
+    ]
+    n.buses.drop(remove, axis=1, inplace=True, errors="ignore")
+    n.lines.drop(remove, axis=1, errors="ignore", inplace=True)
 
     update_p_nom_max(n)
 

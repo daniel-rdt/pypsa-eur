@@ -327,6 +327,21 @@ def create_network_topology(
         [n.lines[ln_attrs], n.links.loc[n.links.carrier.isin(carriers), lk_attrs]]
     ).fillna(0)
 
+    # for h2 network add connections to onshore regional neighbors to topology
+    # distances are center to center distances between the regions
+    if options.get("H2_network", True):
+        regions_neighbors = pd.read_parquet(snakemake.input.bus_regions_neighbors)
+        regions_distances = pd.read_csv(snakemake.input.bus_regions_centroid_distances, index_col=0)
+        for index, row in regions_neighbors.iterrows():
+            for neighbor in row.neighbors:
+                candidate = pd.DataFrame({
+                    "bus0": index,
+                    "bus1": neighbor,
+                    "length": regions_distances.at[index, neighbor],
+                    "underwater_fraction": 0.0}, index=[0])
+                candidates = pd.concat([candidates, candidate], ignore_index=True)
+
+
     # base network topology purely on location not carrier
     candidates["bus0"] = candidates.bus0.map(n.buses.location)
     candidates["bus1"] = candidates.bus1.map(n.buses.location)
@@ -338,6 +353,8 @@ def create_network_topology(
     candidates = pd.concat([candidates_p, candidates_n])
 
     def make_index(c):
+        if bidirectional:
+            connector = " <-> "
         return prefix + c.bus0 + connector + c.bus1
 
     topo = candidates.groupby(["bus0", "bus1"], as_index=False).mean()
@@ -1152,7 +1169,11 @@ def add_storage_and_grids(n, costs):
     )
 
     if options["gas_network"] or options["H2_retrofit"]:
-        fn = snakemake.input.clustered_gas_network
+        if snakemake.params.gas_network_custom:
+            # option to add alternate gas network infrastructure
+            fn = snakemake.input.clustered_gas_network_custom
+        else:
+            fn = snakemake.input.clustered_gas_network
         gas_pipes = pd.read_csv(fn, index_col=0)
 
     if options["gas_network"]:
@@ -3263,8 +3284,8 @@ if __name__ == "__main__":
             simpl="",
             opts="",
             clusters="180",
-            ll="v1.5",
-            sector_opts="8760H-T-H-B-I-A-solar+p3-cb30ex0",
+            ll="vopt",
+            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
             planning_horizons="2030",
         )
 

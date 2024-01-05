@@ -84,6 +84,8 @@ if config["sector"]["gas_network"] or config["sector"]["H2_retrofit"]:
             "../scripts/build_gas_network.py"
 
     rule build_gas_input_locations:
+        params:
+            cutoff_gas_supply=config["scenario"]["cutoff_gas_supply"],
         input:
             lng=HTTP.remote(
                 "https://globalenergymonitor.org/wp-content/uploads/2022/09/Europe-Gas-Tracker-August-2022.xlsx",
@@ -132,9 +134,36 @@ if config["sector"]["gas_network"] or config["sector"]["H2_retrofit"]:
         **rules.build_gas_input_locations.output,
     }
 
+    if config["sector"]["gas_network_custom"]:
+
+        rule cluster_gas_network_custom:
+            input:
+                cleaned_gas_network=RESOURCES + "gas_network.csv",
+                gas_network_custom="data/gas_network/rcm/IPA_DE22.csv",
+                regions_onshore=RESOURCES
+                + "regions_onshore_elec_s{simpl}_{clusters}.geojson",
+                regions_offshore=RESOURCES
+                + "regions_offshore_elec_s{simpl}_{clusters}.geojson",
+            output:
+                clustered_gas_network_custom=RESOURCES + "gas_network_elec_s{simpl}_{clusters}_custom.csv",
+                bus_regions_neighbors=RESOURCES + "bus_regions_s{simpl}_{clusters}_neighbors.parquet",
+                bus_regions_centroid_distances=RESOURCES + "bus_regions_s{simpl}_{clusters}_centroid_distances.csv",
+            resources:
+                mem_mb=4000,
+            log:
+                LOGS + "cluster_gas_network_s{simpl}_{clusters}_custom.log",
+            conda:
+                "../envs/environment.yaml"
+            script:
+                "../scripts/cluster_gas_network_custom.py"
+
+        gas_infrastructure = {
+            **rules.cluster_gas_network_custom.output,
+            **rules.build_gas_input_locations.output,
+        }
 
 if not (config["sector"]["gas_network"] or config["sector"]["H2_retrofit"]):
-    # this is effecively an `else` statement which is however not liked by snakefmt
+    # this is effectively an `else` statement which is however not liked by snakefmt
 
     gas_infrastructure = {}
 
@@ -719,6 +748,8 @@ rule prepare_sector_network:
         emissions_scope=config["energy"]["emissions"],
         eurostat_report_year=config["energy"]["eurostat_report_year"],
         RDIR=RDIR,
+        gas_network_custom=config["sector"]["gas_network_custom"],
+        fix_H2=config["scenario"]["fix_H2"]
     input:
         **build_retro_cost_output,
         **build_biomass_transport_costs_output,
@@ -783,7 +814,7 @@ rule prepare_sector_network:
         + "prenetworks/elec_s{simpl}_{clusters}_l{ll}_{opts}_{sector_opts}_{planning_horizons}.nc",
     threads: 1
     resources:
-        mem_mb=2000,
+        mem_mb=10000,
     log:
         LOGS
         + "prepare_sector_network_elec_s{simpl}_{clusters}_l{ll}_{opts}_{sector_opts}_{planning_horizons}.log",

@@ -42,6 +42,7 @@ from _helpers import (
 logger = logging.getLogger(__name__)
 pypsa.pf.logger.setLevel(logging.WARNING)
 from pypsa.descriptors import get_switchable_as_dense as get_as_dense
+from vresutils.benchmark import memory_logger
 
 
 def add_land_use_constraint(n, planning_horizons, config):
@@ -240,8 +241,7 @@ def add_CCL_constraints(n, config):
     p_nom = n.model["Generator-p_nom"]
 
     gens = n.generators.query("p_nom_extendable").rename_axis(index="Generator-ext")
-    grouper = [gens.bus.map(n.buses.country), gens.carrier]
-    grouper = xr.DataArray(pd.MultiIndex.from_arrays(grouper), dims=["Generator-ext"])
+    grouper = pd.concat([gens.bus.map(n.buses.country), gens.carrier])
     lhs = p_nom.groupby(grouper).sum().rename(bus="country")
 
     minimum = xr.DataArray(agg_p_nom_minmax["min"].dropna()).rename(dim_0="group")
@@ -286,13 +286,13 @@ def add_EQ_constraints(n, o, scaling=1e-1):
     float_regex = "[0-9]*\.?[0-9]+"
     level = float(re.findall(float_regex, o)[0])
     if o[-1] == "c":
-        ggrouper = n.generators.bus.map(n.buses.country).to_xarray()
-        lgrouper = n.loads.bus.map(n.buses.country).to_xarray()
-        sgrouper = n.storage_units.bus.map(n.buses.country).to_xarray()
+        ggrouper = n.generators.bus.map(n.buses.country)
+        lgrouper = n.loads.bus.map(n.buses.country)
+        sgrouper = n.storage_units.bus.map(n.buses.country)
     else:
-        ggrouper = n.generators.bus.to_xarray()
-        lgrouper = n.loads.bus.to_xarray()
-        sgrouper = n.storage_units.bus.to_xarray()
+        ggrouper = n.generators.bus
+        lgrouper = n.loads.bus
+        sgrouper = n.storage_units.bus
     load = (
         n.snapshot_weightings.generators
         @ n.loads_t.p_set.groupby(lgrouper, axis=1).sum()
@@ -306,7 +306,7 @@ def add_EQ_constraints(n, o, scaling=1e-1):
     p = n.model["Generator-p"]
     lhs_gen = (
         (p * (n.snapshot_weightings.generators * scaling))
-        .groupby(ggrouper)
+        .groupby(ggrouper.to_xarray())
         .sum()
         .sum("snapshot")
     )
@@ -315,7 +315,7 @@ def add_EQ_constraints(n, o, scaling=1e-1):
         spillage = n.model["StorageUnit-spill"]
         lhs_spill = (
             (spillage * (-n.snapshot_weightings.stores * scaling))
-            .groupby(sgrouper)
+            .groupby(sgrouper.to_xarray())
             .sum()
             .sum("snapshot")
         )
@@ -662,9 +662,9 @@ if __name__ == "__main__":
             simpl="",
             opts="",
             clusters="180",
-            ll="v1.5",
-            sector_opts="200H-T-H-B-I-A-solar+p3",
-            planning_horizons="2045",
+            ll="vopt",
+            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
+            planning_horizons="2035",
         )
     configure_logging(snakemake)
     if "sector_opts" in snakemake.wildcards.keys():
@@ -680,28 +680,31 @@ if __name__ == "__main__":
 
     np.random.seed(solve_opts.get("seed", 123))
 
-    if "overrides" in snakemake.input.keys():
-        overrides = override_component_attrs(snakemake.input.overrides)
-        n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
-    else:
-        n = pypsa.Network(snakemake.input.network)
+    fn_mem = snakemake.log["memory"]
+    with memory_logger(filename=fn_mem, interval=5.0) as mem:
 
-    n = prepare_network(
-        n,
-        solve_opts,
-        config=snakemake.config,
-        foresight=snakemake.params.foresight,
-        planning_horizons=snakemake.params.planning_horizons,
-        co2_sequestration_potential=snakemake.params["co2_sequestration_potential"],
-    )
+        if "overrides" in snakemake.input.keys():
+            overrides = override_component_attrs(snakemake.input.overrides)
+            n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
+        else:
+            n = pypsa.Network(snakemake.input.network)
 
-    n = solve_network(
-        n,
-        config=snakemake.config,
-        solving=snakemake.params.solving,
-        opts=opts,
-        log_fn=snakemake.log.solver,
-    )
+        n = prepare_network(
+            n,
+            solve_opts,
+            config=snakemake.config,
+            foresight=snakemake.params.foresight,
+            planning_horizons=snakemake.params.planning_horizons,
+            co2_sequestration_potential=snakemake.params["co2_sequestration_potential"],
+        )
 
-    n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
-    n.export_to_netcdf(snakemake.output[0])
+        n = solve_network(
+            n,
+            config=snakemake.config,
+            solving=snakemake.params.solving,
+            opts=opts,
+            log_fn=snakemake.log.solver,
+        )
+
+        n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
+        n.export_to_netcdf(snakemake.output[0])

@@ -15,9 +15,8 @@ __pycache__
 notebooks
 benchmarks
 logs
-resources*
 results
-networks*
-cutouts
-data/bundle
 doc
+data_exchange_pypsa
+zenodo.org
+h2_net_comparison

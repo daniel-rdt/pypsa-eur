@@ -261,10 +261,10 @@ def group_pipes(df, drop_direction=False):
     # there are pipes for each investment period rename to AC buses name for plotting
     df["index_orig"] = df.index
     df.index = df.apply(
-        lambda x: f"H2 pipeline {x.bus0.replace(' H2', '')} -> {x.bus1.replace(' H2', '')}",
+        lambda x: f"H2 pipeline {x.bus0.replace(' H2', '')} <-> {x.bus1.replace(' H2', '')}",
         axis=1,
     )
-    # group pipe lines connecting the same buses and rename them for plotting
+    # group pipelines connecting the same buses and rename them for plotting
     pipe_capacity = df.groupby(level=0).agg(
         {"p_nom_opt": sum, "bus0": "first", "bus1": "first", "index_orig": "first"}
     )
@@ -280,17 +280,18 @@ def plot_h2_map(network, regions):
     assign_location(n)
 
     h2_storage = n.stores.query("carrier == 'H2 Store'")
-    regions["H2"] = h2_storage.rename(
-        index=h2_storage.bus.map(n.buses.location)
-    ).e_nom_opt.div(
-        1e6
-    )  # TWh
+    regions["H2"] = (
+        h2_storage.groupby("bus")
+        .sum()
+        .rename(index=n.buses.location[h2_storage.groupby("bus").sum().index])
+        .e_nom_opt.div(1e6)  # TWh
+    )
     regions["H2"] = regions["H2"].where(regions["H2"] > 0.1)
 
-    bus_size_factor = 1e5
+    bus_size_factor = 4e4
     linewidth_factor = 7e3
     # MW below which not drawn
-    line_lower_threshold = 750
+    line_lower_threshold = 62
 
     # Drop non-electric buses so they don't clutter the plot
     n.buses.drop(n.buses.index[n.buses.carrier != "AC"], inplace=True)
@@ -315,18 +316,18 @@ def plot_h2_map(network, regions):
     h2_retro = n.links[n.links.carrier == "H2 pipeline retrofitted"]
 
     if snakemake.params.foresight in ["myopic", "myopic_stepwise"]:
-        # sum capacitiy for pipelines from different investment periods
+        # sum capacity for pipelines from different investment periods
         h2_new = group_pipes(h2_new)
 
         if not h2_retro.empty:
             h2_retro = (
                 group_pipes(h2_retro, drop_direction=True)
-                # .reindex(h2_new.index)
                 .fillna(0)
             )
 
     if not h2_retro.empty:
         if snakemake.params.foresight not in ["myopic", "myopic_stepwise"]:
+            # create positive order of buses
             positive_order = h2_retro.bus0 < h2_retro.bus1
             h2_retro_p = h2_retro[positive_order]
             swap_buses = {"bus0": "bus1", "bus1": "bus0"}
@@ -355,9 +356,11 @@ def plot_h2_map(network, regions):
     link_widths_total = h2_total / linewidth_factor
 
     n.links.rename(index=lambda x: x.split("-2")[0], inplace=True)
+
     # group links by summing up p_nom values and taking the first value of the rest of the columns
     other_cols = dict.fromkeys(n.links.columns.drop(["p_nom_opt", "p_nom"]), "first")
     n.links = n.links.groupby(level=0).agg({"p_nom_opt": sum, "p_nom": sum, **other_cols})
+
     link_widths_total = link_widths_total.reindex(n.links.index).fillna(0.0)
     link_widths_total[n.links.p_nom_opt < line_lower_threshold] = 0.0
 
@@ -927,9 +930,9 @@ if __name__ == "__main__":
             simpl="",
             opts="",
             clusters="180",
-            ll="v1.5",
-            sector_opts="8760H-T-H-B-I-A-solar+p3-linemaxext10",
-            planning_horizons="2045",
+            ll="vopt",
+            sector_opts="1460SEG-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
+            planning_horizons="2030",
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])

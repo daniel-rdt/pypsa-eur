@@ -24,6 +24,7 @@ import xarray as xr
 from _helpers import override_component_attrs, update_config_with_sector_opts
 from prepare_sector_network import cluster_heat_buses, define_spatial, prepare_costs
 from add_brownfield import add_brownfield, add_build_year_to_new_assets
+from cluster_gas_network_custom import filter_for_country
 
 cc = coco.CountryConverter()
 
@@ -441,13 +442,13 @@ def add_heating_capacities_installed_before_baseyear(
     for name in names:
         name_type = "central" if name == "urban central" else "decentral"
         nodes[name] = pd.Index(
-            [
+            np.unique([
                 n.buses.at[index, "location"]
                 for index in n.buses.index[
                     n.buses.index.str.contains(name)
                     & n.buses.index.str.contains("heat")
                 ]
-            ]
+            ])
         )
         heat_pump_type = "air" if "urban" in name else "ground"
         heat_type = "residential" if "residential" in name else "services"
@@ -573,18 +574,80 @@ def add_heating_capacities_installed_before_baseyear(
             )
 
 
-def replace_gas_network(n):
+def set_gas_network(n, fn_gas):
     """
     Sets gas network pipeline capacities according to input gas network mapped to clustered nodes.
     """
-    pass
+    gas_clustered = pd.read_csv(fn_gas, index_col=0)
+    # filter out interconnectors
+    gas_clustered_de = filter_for_country(gas_clustered, "DE")
 
+    gas_old = n.links.loc[
+        (n.links.carrier == "gas pipeline")
+        & (n.links.bus0.str.startswith("DE"))
+        & (n.links.bus1.str.startswith("DE")),
+        ["p_nom", "p_nom_min", "p_nom_max"]]
 
-def replace_H2_network(n):
+    # substitute gas network capacities by setting p_nom values
+    # German gas pipelines p_nom values need to be set to 0, so that pipelines that have disappeared are now 0
+    n.links.loc[
+        (n.links.carrier == "gas pipeline")
+        & (n.links.bus0.str.startswith("DE"))
+        & (n.links.bus1.str.startswith("DE")),
+        ["p_nom", "p_nom_max"]] = np.ceil(n.links.loc[
+        (n.links.carrier == "gas pipeline")
+        & (n.links.bus0.str.startswith("DE"))
+        & (n.links.bus1.str.startswith("DE")),
+        ["p_nom", "p_nom_max"]])
+
+    # if snakemake.params.fix_H2:
+    #     # if H2 and gas shall be fixed, set p_nom_min and p_nom_max to the same value,
+    #     # so pipelines will be extended exactly to nominal value
+    #     # p_nom needs to stay the same as old value in order not to break retrofitting constraint
+    #     # TODO: Check if this is true or if this creates other problems. Check option of not setting gas pipes,
+    #     #  instead let model find corresponding capacities
+    #     p_noms = ["p_nom_min", "p_nom_max"]
+    # else:
+    #     # else p_nom_min needs to stay 0 to allow for retrofitting to H2 pipelines
+    #     p_noms = ["p_nom_max"]
+
+    # set German gas pipelines from custom input to corresponding p_noms
+    return gas_old, gas_clustered_de
+
+def set_H2_network(n, fn_new, fn_retro):
     """
     Sets H2 network pipeline capacities according to input gas network mapped to clustered nodes.
     """
-    pass
+
+    h2_retro_clustered = pd.read_csv(fn_retro, index_col=0)
+    h2_new_clustered = pd.read_csv(fn_new, index_col=0)
+
+    # substitute H2 network capacities by setting p_nom values
+    if snakemake.params.fix_H2:
+        # if H2 shall be fixed, set p_nom_min and p_nom_max so pipelines will be extended exactly to nominal value
+        p_noms = ["p_nom_min", "p_nom_max"]
+        # also if H2 shall be fixed, the rest of German pipelines, p_nom_min and p_nom_max are set to 0 first
+        # p_nom and p_nom_opt are already 0
+        carrier = ["H2 pipeline", "H2 pipeline retrofitted"]
+        n.links.loc[
+            (n.links.carrier.isin(carrier))
+            & (n.links.bus0.str.startswith("DE"))
+            & (n.links.bus1.str.startswith("DE"))
+            & (n.links.index.str.contains(str(baseyear))),
+            p_noms] = 0.0
+    else:
+        # else set only p_nom_min so h2 infrastructure will be the minimum but can be extended further if optimal
+        p_noms = ["p_nom_min"]
+
+    h2_retro_clustered["p_nom"] = np.floor(h2_retro_clustered.p_nom)
+    # convert p_nom to H2 capacity
+    h2_retro_clustered.loc[:, ["p_nom"]] = h2_retro_clustered.loc[:, ["p_nom"]] * 2 * snakemake.params.H2_retrofit_capacity_per_CH4
+
+    n.links.loc[h2_retro_clustered.index, p_noms] \
+        = h2_retro_clustered.p_nom
+    n.links.loc[h2_new_clustered.index, p_noms] \
+        = h2_new_clustered.p_nom
+
 
 def _add_brownfield(n, year):
     """
@@ -608,10 +671,10 @@ if __name__ == "__main__":
             "add_existing_baseyear",
             simpl="",
             clusters="180",
-            ll="v1.5",
+            ll="vopt",
             opts="",
-            sector_opts="8760H-T-H-B-I-A-solar+p3",
-            planning_horizons=2040,
+            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
+            planning_horizons=2045,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
@@ -625,7 +688,7 @@ if __name__ == "__main__":
 
     overrides = override_component_attrs(snakemake.input.overrides)
 
-    if (snakemake.params.name_base) and (snakemake.params.foresight=="myopic_stepwise"):
+    if (snakemake.params.name_base) and (snakemake.params.foresight == "myopic_stepwise"):
         n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
         _add_brownfield(n, baseyear)
 
@@ -678,13 +741,14 @@ if __name__ == "__main__":
         if options.get("cluster_heat_buses", False):
             cluster_heat_buses(n)
 
-    # if set in config gas network can be replaced by custom gas network
-    if snakemake.params.gas_network_custom:
-        replace_gas_network(n)
-
     # if set in config custom H2 network can be added as base infrastructure such as FNB H2 core network
+    # gas network is later optimized accordingly
     if snakemake.params.H2_network_custom:
-        replace_H2_network(n)
+        fn_gas = snakemake.input.clustered_gas_custom
+        fn_retro = snakemake.input.clustered_h2_retro_custom
+        fn_new = snakemake.input.clustered_h2_new_custom
+        gas_old, gas_new = set_gas_network(n, fn_gas)
+        set_H2_network(n, fn_new, fn_retro)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
 

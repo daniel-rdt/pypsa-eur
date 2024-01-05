@@ -43,6 +43,7 @@ def add_build_year_to_new_assets(n, baseyear):
         for attr in n.component_attrs[c.name].index[selection]:
             c.pnl[attr].rename(columns=rename, inplace=True)
 
+
 def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_per_CH4):
     logger.info(f"Preparing brownfield for the year {year}")
 
@@ -97,6 +98,20 @@ def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_pe
         c.df[attr + "_nom"] = c.df[attr + "_nom_opt"]
         c.df[attr + "_nom_extendable"] = False
 
+        # option to build back FT by factor
+        if options.get("build_back_FT_factor"):
+            if c.name == "Link":
+                logger.info(f"Allow for Fischer-Tropsch build back down to {(1-options.get('build_back_FT_factor'))*100}% of p_nom_opt.")
+                ft_i = (c.df.carrier == "Fischer-Tropsch")
+                bb_ft_factor = options.get("build_back_FT_factor")
+                # set p_nom_extendable back to true to allow for build back
+                c.df.loc[ft_i, [attr + "_nom_extendable"]] = True
+                # limit to build back by setting p_nom_max to former p_nom_opt value
+                c.df.loc[ft_i, [attr + "_nom_max"]] = c.df.loc[ft_i, attr + "_nom_opt"]
+                # set build back range according to build_back_FT_factor
+                c.df.loc[ft_i, [attr + "_nom_min"]] = c.df.loc[ft_i, attr + "_nom_opt"] * (1 - bb_ft_factor)
+                # stranded assets costs are then capex of build back capacities minus FOM
+
         n.import_components_from_dataframe(c.df, c.name)
 
         # copy time-dependent
@@ -136,9 +151,13 @@ def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_pe
             - CH4_per_H2
             * already_retrofitted.reindex(index=pipe_capacity.index).fillna(0)
         )
-        n.links.loc[gas_pipes_i, "p_nom"] = remaining_capacity
-        # set p_nom_max to new p_nom value since pipelines can be retrofitted
-        n.links.loc[gas_pipes_i, "p_nom_max"] = n.links.loc[gas_pipes_i, "p_nom"]
+        # set p_nom and p_nom_max to new p_nom value
+        n.links.loc[gas_pipes_i, ["p_nom", "p_nom_max"]] = remaining_capacity
+        # also new p_nom_max values for retrofitted H2 pipelines for current year need to be set accordingly
+        n.links.loc[
+            (n.links.carrier == "H2 pipeline retrofitted") & (n.links.build_year == year),
+            ["p_nom_max"]
+        ] = remaining_capacity.rename(index=lambda x: x.replace(to, fr)) * H2_retrofit_capacity_per_CH4
 
         # drop gas pipelines with capacity less than threshold due to infeasible size.
         # Also drop corresponding H2 retro pipeline since can't be retrofitted anymore
@@ -153,15 +172,6 @@ def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_pe
                             )
         # drop both set of links
         n.mremove("Link", to_drop_gas.append(to_drop_h2_retro))
-
-        # for already retrofitted and newly build H2 pipelines, set p_nom_min as p_nom.
-        # Thus, H2 pipelines are not allowed to be build back before end of life
-        h2_new_fixed_i = n.links[
-            (n.links.carrier == "H2 pipeline")
-            & (n.links.build_year != year)
-        ].index
-        h2_fixed_i = h2_retrofitted_fixed_i.append(h2_new_fixed_i)
-        n.links.loc[h2_fixed_i, "p_nom_min"] = n.links.loc[h2_fixed_i, "p_nom"]
 
     else:
         new_pipes = n.links.carrier.isin(pipe_carrier) & (
@@ -181,8 +191,8 @@ if __name__ == "__main__":
             simpl="",
             clusters="180",
             opts="",
-            ll="v1.5",
-            sector_opts="800H-T-H-B-I-A-solar+p3",
+            ll="vopt",
+            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
             planning_horizons=2045,
         )
 
@@ -193,6 +203,8 @@ if __name__ == "__main__":
     logger.info(f"Preparing brownfield from the file {snakemake.input.network_p}")
 
     year = int(snakemake.wildcards.planning_horizons)
+
+    options = snakemake.params.sector
 
     overrides = override_component_attrs(snakemake.input.overrides)
     n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
