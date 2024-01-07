@@ -17,6 +17,8 @@ idx = pd.IndexSlice
 import numpy as np
 import pypsa
 from _helpers import override_component_attrs, update_config_with_sector_opts
+from pypsa.io import import_components_from_dataframe
+
 
 def add_build_year_to_new_assets(n, baseyear):
     """
@@ -181,6 +183,43 @@ def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_pe
         n.links.loc[new_pipes, "p_nom_min"] = 0.0
 
 
+def add_ocgt_retro(n, year):
+    """
+    Function to add OCGT H2 retrofitting of existing plants.
+    """
+    logger.info(
+        "Add OCGT H2 retrofitting."
+    )
+    # repurposing cost of OCGT gas to H2 in % investment cost in EUR/MW
+    # source: Christidis et al (2023) - H2-Ready-Gaskraftwerke,
+    # https://reiner-lemoine-institut.de/wp-content/uploads/2023/11/RLI-Studie-H2-ready_DE.pdf
+    retro_factor_ocgt = 0.15
+    efficiency_ocgt = 0.39
+
+    # existing OCGT gas boilers
+    ocgt_i = n.links.query("carrier == 'OCGT' and ~p_nom_extendable").index
+    df = n.links.loc[ocgt_i].copy()
+    # adjust bus 0
+    df["bus0"] = df.bus0.map(n.buses.location) + " H2"
+    # rename carrier and index
+    df["carrier"] = df.carrier.apply(
+        lambda x: x.replace("OCGT", "OCGT H2 retrofitted")
+    )
+    df.rename(
+        index=lambda x: x.replace("OCGT", "OCGT H2 retrofitted") + f"-{year}", inplace=True
+    )
+    df.loc[:, "capital_cost"] *= retro_factor_ocgt
+    df.loc[:, "efficiency"] = efficiency_ocgt
+    # set p_nom_max to OCGT gas p_nom and existing capacity to zero
+    df.loc[:, "p_nom_max"] = df["p_nom"]
+    df.loc[:, "p_nom"] = 0
+    df.loc[:, "p_nom_extendable"] = True
+    # set co2 emissions to 0
+    df.loc[:, "efficiency2"] = 0.0
+    # add OCGT H2 to network
+    import_components_from_dataframe(n, df, "Link")
+
+
 # %%
 if __name__ == "__main__":
     if "snakemake" not in globals():
@@ -192,8 +231,8 @@ if __name__ == "__main__":
             clusters="180",
             opts="",
             ll="vopt",
-            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
-            planning_horizons=2045,
+            sector_opts="400H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
+            planning_horizons=2035,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
@@ -215,6 +254,9 @@ if __name__ == "__main__":
 
     add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
                    snakemake.params.H2_retrofit_capacity_per_CH4)
+
+    if options["OCGT_H2_retrofitting"]:
+        add_ocgt_retro(n, year)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
     n.export_to_netcdf(snakemake.output[0])

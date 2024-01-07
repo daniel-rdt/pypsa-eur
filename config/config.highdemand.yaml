@@ -10,14 +10,14 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "20240101_myopic_stepwise_1460SEG_default_demand_2030" # use this to keep track of runs with different settings
+  name: "20240107_ocgt_h2_gasm2_100h_test_myopic" # use this to keep track of runs with different settings
   name_base: "" # option for myopic_stepwise foresight. Set to empty str for first time step, otherwise set str to name of base run
   disable_progressbar: false # set to true to disable the progressbar
   shared_resources: true # set to true to share the default resources across runs
   shared_cutouts: true # set to true to share the default cutout(s) across runs
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#foresight
-foresight: myopic_stepwise
+foresight: myopic
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#scenario
 # Wildcard docs in https://pypsa-eur.readthedocs.io/en/latest/wildcards.html
@@ -34,15 +34,15 @@ scenario:
   - ''
   sector_opts:
 #  - 200H-T-H-B-I-A-solar+p3-linemaxext10
-  - 1460SEG-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4
+#  - 1460SEG-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4
 #  - 200H-T-H-B-I-A-solar+p3-linemaxext10-gas+m2
-#  - 8760H-T-H-B-I-A-solar+p3
+  - 100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2
   planning_horizons:
 #  - 2020
   - 2030
-#  - 2035
-#  - 2040
-#  - 2045
+  - 2035
+  - 2040
+  - 2045
   planning_horizons_all:
   - 2030
   - 2035
@@ -526,6 +526,7 @@ sector:
   allam_cycle: false
   hydrogen_fuel_cell: true
   hydrogen_turbine: false
+  OCGT_H2_retrofitting: true
   SMR: true
   regional_co2_sequestration_potential:
     enable: false  # enable regionally resolved geological co2 storage potential
@@ -852,6 +853,7 @@ plotting:
     solar rooftop: '#ffea80'
     # gas
     OCGT: '#e0986c'
+    OCGT H2 retrofitted: '#ba99b5'
     OCGT marginal: '#e0986c'
     OCGT-heat: '#e0986c'
     gas boiler: '#db6a25'
