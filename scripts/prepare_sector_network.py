@@ -3037,7 +3037,8 @@ def remove_h2_network(n):
 
 def maybe_adjust_costs_and_potentials(n, opts):
     for o in opts:
-        if "+" not in o:
+        flags = ["+e", "+p", "+m", "+c"]
+        if all(flag not in o for flag in flags):
             continue
         oo = o.split("+")
         carrier_list = np.hstack(
@@ -3051,7 +3052,7 @@ def maybe_adjust_costs_and_potentials(n, opts):
         suptechs = map(lambda c: c.split("-", 2)[0], carrier_list)
         if oo[0].startswith(tuple(suptechs)):
             carrier = oo[0]
-            attr_lookup = {"p": "p_nom_max", "e": "e_nom_max", "c": "capital_cost"}
+            attr_lookup = {"p": "p_nom_max", "e": "e_nom_max", "c": "capital_cost", "m": "marginal_cost"}
             attr = attr_lookup[oo[1][0]]
             factor = float(oo[1][1:])
             # beware if factor is 0 and p_nom_max is np.inf, 0*np.inf is nan
