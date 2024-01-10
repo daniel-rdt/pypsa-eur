@@ -583,17 +583,13 @@ def add_ocgt_retrofit_constraint(n, snapshots):
     from pypsa.descriptors import get_activity_mask
     c = "Link"
     # existing OCGT plants
-    gas_i = n.links.query("carrier == 'OCGT' and ~p_nom_extendable").index
-    h2_i = n.links.query("carrier == 'OCGT H2 retrofitted'").index
+    gas_i = n.links.query("carrier == 'OCGT' and ~p_nom_extendable and p_nom > 0").index
+    h2_i = n.links.query("carrier == 'OCGT H2 retrofitted' and p_nom_extendable").index
+    if h2_i.empty or gas_i.empty:
+        return
 
-    # set old OCGT plants to extendable, so they can be retrofitted.
-    # n.links.loc[gas_i, "p_nom_extendable"] = True
-    # set p_nom_max to old p_nom
-    # n.links.loc[gas_i, "p_nom_max"] = n.links.loc[gas_i, "p_nom"]
     # store old p_nom_value for dispatch constraint
     p_nom = n.links.loc[gas_i, "p_nom"]
-    # reset p_nom
-    # n.links.loc[gas_i, "p_nom"] = 0
 
     # TODO: check if profile is necessary or if it should always be max capacity as limit
     # electricity profile
@@ -620,6 +616,7 @@ def add_ocgt_retrofit_constraint(n, snapshots):
     p_gas = dispatch.sel(Link=gas_i)
     p_h2 = dispatch.sel(Link=h2_i)
 
+    # under assumption that plant can be used in hybrid between carriers
     lhs = p_gas + p_h2
 
     n.model.add_constraints(lhs <= rhs, name="OCGT_retrofit")
@@ -714,8 +711,8 @@ if __name__ == "__main__":
             opts="",
             clusters="180",
             ll="vopt",
-            sector_opts="400H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
-            planning_horizons="2030",
+            sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2",
+            planning_horizons="2035",
         )
     configure_logging(snakemake)
     if "sector_opts" in snakemake.wildcards.keys():

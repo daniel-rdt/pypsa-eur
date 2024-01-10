@@ -182,6 +182,32 @@ def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_pe
         n.links.loc[new_pipes, "p_nom"] = 0.0
         n.links.loc[new_pipes, "p_nom_min"] = 0.0
 
+    if options["OCGT_H2_retrofitting"]:
+        # subtract retrofitted ocgt from existing ocgt
+        ocgt_i = n.links.query("carrier == 'OCGT' and ~p_nom_extendable").index
+        year_p_str = str(year_p)
+        h2_retrofitted_p = n.links.query("carrier == 'OCGT H2 retrofitted' and index.str.endswith(@year_p_str)").index
+        fr = "OCGT H2 retrofitted"
+        to = "OCGT"
+        already_retrofitted = (
+            n.links.loc[h2_retrofitted_p, "p_nom"]
+            .rename(lambda x: f"{x.replace(fr, to)[:-5]}")
+        )
+        ocgt_gas_capacity = n.links.loc[ocgt_i, "p_nom"]
+        remaining_capacity = (
+                ocgt_gas_capacity
+                - already_retrofitted.reindex(index=ocgt_gas_capacity.index).fillna(0)
+        ).round(6)
+        # set p_nom and p_nom_max to new p_nom value
+        n.links.loc[ocgt_i, ["p_nom", "p_nom_max"]] = remaining_capacity
+
+        # drop links below threshold
+        to_drop_gas = (n.links.loc[ocgt_i]
+                       .query("p_nom < @threshold")
+                       .index
+                       )
+        # drop both set of links
+        n.mremove("Link", to_drop_gas)
 
 def add_ocgt_retro(n, year):
     """
@@ -193,11 +219,17 @@ def add_ocgt_retro(n, year):
     # repurposing cost of OCGT gas to H2 in % investment cost in EUR/MW
     # source: Christidis et al (2023) - H2-Ready-Gaskraftwerke,
     # https://reiner-lemoine-institut.de/wp-content/uploads/2023/11/RLI-Studie-H2-ready_DE.pdf
-    retro_factor_ocgt = 0.15
+    retro_factor_ocgt = 0.015
     efficiency_ocgt = 0.39
 
     # existing OCGT gas boilers
-    ocgt_i = n.links.query("carrier == 'OCGT' and ~p_nom_extendable").index
+    ocgt_i = n.links.query("carrier == 'OCGT' and ~p_nom_extendable and p_nom > 0").index
+    if ocgt_i.empty:
+        logger.info(
+            "No more OCGT retrofitting potential."
+        )
+        return
+
     df = n.links.loc[ocgt_i].copy()
     # adjust bus 0
     df["bus0"] = df.bus0.map(n.buses.location) + " H2"
@@ -216,9 +248,11 @@ def add_ocgt_retro(n, year):
     df.loc[:, "p_nom_extendable"] = True
     # set co2 emissions to 0
     df.loc[:, "efficiency2"] = 0.0
+    # build_year and lifetime will stay the same as decommissioning of gas plant
+    # will also lead to decommissioning of retrofitted use
+    # TODO: research extension of lifetime
     # add OCGT H2 to network
     import_components_from_dataframe(n, df, "Link")
-
 
 # %%
 if __name__ == "__main__":
@@ -231,8 +265,8 @@ if __name__ == "__main__":
             clusters="180",
             opts="",
             ll="vopt",
-            sector_opts="400H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
-            planning_horizons=2035,
+            sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2",
+            planning_horizons=2040,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
@@ -242,6 +276,8 @@ if __name__ == "__main__":
     logger.info(f"Preparing brownfield from the file {snakemake.input.network_p}")
 
     year = int(snakemake.wildcards.planning_horizons)
+    years_all = snakemake.config["scenario"]["planning_horizons"]
+    year_p = years_all[years_all.index(year)-1]
 
     options = snakemake.params.sector
 
