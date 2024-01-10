@@ -7,6 +7,7 @@ if config["sector"]["H2_network_custom"]:
         params:
             baseyear=config["scenario"]["planning_horizons"][0],
             H2_network_custom=config["sector"]["H2_network_custom"],
+            cluster_H2_network_custom=config["sector"]["cluster_H2_network_custom"],
             gas_network_custom=config["sector"]["gas_network_custom"],
             fix_H2=config["scenario"]["fix_H2"],
         input:

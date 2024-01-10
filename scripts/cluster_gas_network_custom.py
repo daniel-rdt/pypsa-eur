@@ -45,12 +45,14 @@ def load_custom_gas_network(path, **indexcol):
     """
     df = pd.read_csv(path, decimal=",", sep=";", **indexcol)
     # drop columns that are not needed
-    to_drop = list(set(df.columns).intersection({"From_Node", "To_Node", "node0_pypsa_region", "node1_pypsa_region", "node0", "node1", "node0_x", "node0_y", "node1_x", "node1_y"}))
+    to_drop = list(set(df.columns).intersection({"From_Node", "To_Node", "from_node", "to_node", "node0_pypsa_region", "node1_pypsa_region", "node0", "node1", "node0_x", "node0_y", "node1_x", "node1_y"}))
     df.drop(columns=to_drop, inplace=True)
     # turn coordinates into points and drop redundant columns
-    df["point0"] = gpd.points_from_xy(df.node0_long, df.node0_lat)
-    df["point1"] = gpd.points_from_xy(df.node1_long, df.node1_lat)
-    df.drop(columns=["node0_long", "node0_lat", "node1_long", "node1_lat"], inplace=True)
+    to_drop = list(set(df.columns).intersection({"node0_long", "node0_lat", "node1_long", "node1_lat"}))
+    if len(to_drop) == 4:
+        df["point0"] = gpd.points_from_xy(df.node0_long, df.node0_lat)
+        df["point1"] = gpd.points_from_xy(df.node1_long, df.node1_lat)
+    df.drop(columns=to_drop, inplace=True)
     # convert from GWh/day to MWh/h
     cap_col = list(set(df.columns).intersection({"CH4_80bar_GWh_d", "Cap_H2_GWh_d", "Cap_CH4_GWh_d"}))[0]
     df[cap_col] = df[cap_col] * 1e3 / 24
@@ -61,6 +63,13 @@ def load_custom_gas_network(path, **indexcol):
 
     return df
 
+def swap_buses(df):
+    # create positive order of buses for bidirectional links
+    positive_order = (df.bus0 < df.bus1) | (~df.bidirectional)
+    df_p = df[positive_order]
+    swap_buses = {"bus0": "bus1", "bus1": "bus0"}
+    df_n = df[~positive_order].rename(columns=swap_buses)
+    return pd.concat([df_p, df_n])
 
 def build_clustered_gas_network(df, bus_regions, length_factor=1.25, **kwargs):
     for i in [0, 1]:
@@ -103,14 +112,6 @@ def build_clustered_gas_network(df, bus_regions, length_factor=1.25, **kwargs):
     # tidy and create new numbered index
     df.drop(["point0", "point1"], axis=1, inplace=True)
     df.reset_index(drop=True, inplace=True)
-
-    def swap_buses(df):
-        # create positive order of buses for bidirectional links
-        positive_order = (df.bus0 < df.bus1) | (~df.bidirectional)
-        df_p = df[positive_order]
-        swap_buses = {"bus0": "bus1", "bus1": "bus0"}
-        df_n = df[~positive_order].rename(columns=swap_buses)
-        return pd.concat([df_p, df_n])
 
     df = swap_buses(df)
 
@@ -198,6 +199,26 @@ def find_neighbors(gdf):
     return gdf[["neighbors"]]
 
 
+def aggregate_clustered_gas_network_custom(df, **kwargs):
+    df.rename(columns={
+        "from_region": "bus0",
+        "to_region": "bus1",
+        "length_km": "length",
+        "border_index": "name"
+    }, inplace=True)
+    df = swap_buses(df)
+    reindex_pipes(df, **kwargs)
+    strategies = {
+        "bus0": "first",
+        "bus1": "first",
+        "p_nom": "sum",
+        "length": "mean",
+        "name": " ".join,
+        "p_min_pu": "min",
+    }
+    return aggregate_parallel_pipes(df, strategies)
+
+
 if __name__ == "__main__":
     if "snakemake" not in globals():
         from _helpers import mock_snakemake
@@ -224,8 +245,11 @@ if __name__ == "__main__":
     gas_network = build_clustered_gas_network(df_default, bus_regions)
 
     # clustered gas network from custom addition
-    gas_network_custom = build_clustered_gas_network(df_custom, bus_regions)
-    gas_network_custom_de = filter_for_country(gas_network_custom, "DE")
+    if snakemake.params.cluster_gas_network_custom:
+        gas_network_custom = build_clustered_gas_network(df_custom, bus_regions)
+        gas_network_custom_de = filter_for_country(gas_network_custom, "DE")
+    else:
+        gas_network_custom_de = aggregate_clustered_gas_network_custom(df_custom)
 
     # merge gas networks to one
     gas_network_merged = substitute_country_network(gas_network, gas_network_custom_de, "DE")

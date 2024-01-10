@@ -134,12 +134,18 @@ if config["sector"]["gas_network"] or config["sector"]["H2_retrofit"]:
         **rules.build_gas_input_locations.output,
     }
 
-    if config["sector"]["gas_network_custom"]:
+    if config["sector"]["cluster_gas_network_custom"]:
+        CUSTOM_GAS_CSV = "IPA_DE23.csv"
+    else:
+        CUSTOM_GAS_CSV = "IPA_DE23_clustered.csv"
 
+    if config["sector"]["gas_network_custom"]:
         rule cluster_gas_network_custom:
+            params:
+                cluster_gas_network_custom=config["sector"]["cluster_gas_network_custom"],
             input:
                 cleaned_gas_network=RESOURCES + "gas_network.csv",
-                gas_network_custom="data/gas_network/rcm/IPA_DE22.csv",
+                gas_network_custom="data/gas_network/rcm/"+ CUSTOM_GAS_CSV,
                 regions_onshore=RESOURCES
                 + "regions_onshore_elec_s{simpl}_{clusters}.geojson",
                 regions_offshore=RESOURCES
