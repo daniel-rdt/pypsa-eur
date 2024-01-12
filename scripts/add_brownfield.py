@@ -44,7 +44,7 @@ def add_build_year_to_new_assets(n, baseyear):
             c.pnl[attr].rename(columns=rename, inplace=True)
 
 
-def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_per_CH4):
+def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_per_CH4, build_back_FT_factor):
     logger.info(f"Preparing brownfield for the year {year}")
 
     # electric transmission grid set optimised capacities of previous as minimum
@@ -99,7 +99,7 @@ def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_pe
         c.df[attr + "_nom_extendable"] = False
 
         # option to build back FT by factor
-        if options.get("build_back_FT_factor"):
+        if build_back_FT_factor:
             if c.name == "Link":
                 logger.info(f"Allow for Fischer-Tropsch build back down to {(1-options.get('build_back_FT_factor'))*100}% of p_nom_opt.")
                 ft_i = (c.df.carrier == "Fischer-Tropsch")
@@ -206,6 +206,8 @@ if __name__ == "__main__":
 
     options = snakemake.params.sector
 
+    build_back_FT_factor = options.get("build_back_FT_factor")
+
     overrides = override_component_attrs(snakemake.input.overrides)
     n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
 
@@ -214,7 +216,7 @@ if __name__ == "__main__":
     n_p = pypsa.Network(snakemake.input.network_p, override_component_attrs=overrides)
 
     add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
-                   snakemake.params.H2_retrofit_capacity_per_CH4)
+                   snakemake.params.H2_retrofit_capacity_per_CH4, build_back_FT_factor)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
     n.export_to_netcdf(snakemake.output[0])
