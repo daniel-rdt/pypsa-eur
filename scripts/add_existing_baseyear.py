@@ -574,7 +574,7 @@ def add_heating_capacities_installed_before_baseyear(
             )
 
 
-def set_gas_network(n, fn_gas):
+def set_gas_network(net, fn_gas):
     """
     Sets gas network pipeline capacities according to input gas network mapped to clustered nodes.
     """
@@ -582,39 +582,24 @@ def set_gas_network(n, fn_gas):
     # filter out interconnectors
     gas_clustered_de = filter_for_country(gas_clustered, "DE")
 
-    gas_old = n.links.loc[
-        (n.links.carrier == "gas pipeline")
-        & (n.links.bus0.str.startswith("DE"))
-        & (n.links.bus1.str.startswith("DE")),
-        ["p_nom", "p_nom_min", "p_nom_max"]]
+    gas_de_i = net.links.loc[
+        (net.links.carrier == "gas pipeline")
+        & (net.links.bus0.str.startswith("DE"))
+        & (net.links.bus1.str.startswith("DE"))].index
 
-    # substitute gas network capacities by setting p_nom values
-    # German gas pipelines p_nom values need to be set to 0, so that pipelines that have disappeared are now 0
-    n.links.loc[
-        (n.links.carrier == "gas pipeline")
-        & (n.links.bus0.str.startswith("DE"))
-        & (n.links.bus1.str.startswith("DE")),
-        ["p_nom", "p_nom_max"]] = np.ceil(n.links.loc[
-        (n.links.carrier == "gas pipeline")
-        & (n.links.bus0.str.startswith("DE"))
-        & (n.links.bus1.str.startswith("DE")),
-        ["p_nom", "p_nom_max"]])
+    gas_old = net.links.loc[gas_de_i, ["p_nom", "p_nom_min", "p_nom_max"]]
 
-    # if snakemake.params.fix_H2:
-    #     # if H2 and gas shall be fixed, set p_nom_min and p_nom_max to the same value,
-    #     # so pipelines will be extended exactly to nominal value
-    #     # p_nom needs to stay the same as old value in order not to break retrofitting constraint
-    #     # TODO: Check if this is true or if this creates other problems. Check option of not setting gas pipes,
-    #     #  instead let model find corresponding capacities
-    #     p_noms = ["p_nom_min", "p_nom_max"]
-    # else:
-    #     # else p_nom_min needs to stay 0 to allow for retrofitting to H2 pipelines
-    #     p_noms = ["p_nom_max"]
+    # if baseyear != year_first:
+    #     # set German gas pipelines from custom input to corresponding p_noms
+    #     net.links.loc[gas_de_i, ["p_nom_opt", "p_nom", "p_nom_min", "p_nom_max"]] = gas_clustered_de.p_nom.reindex(gas_de_i).fillna(0)
 
-    # set German gas pipelines from custom input to corresponding p_noms
+    # then existing gas links need to be rounded up to adjust for some rounding inaccuracy in custom H2 dataset
+    net.links.loc[gas_de_i, ["p_nom_opt", "p_nom", "p_nom_min", "p_nom_max"]] = np.ceil(
+        net.links.loc[gas_de_i, ["p_nom_opt", "p_nom", "p_nom_min", "p_nom_max"]])
+
     return gas_old, gas_clustered_de
 
-def set_H2_network(n, fn_new, fn_retro):
+def set_H2_network(net, fn_new, fn_retro):
     """
     Sets H2 network pipeline capacities according to input gas network mapped to clustered nodes.
     """
@@ -629,23 +614,32 @@ def set_H2_network(n, fn_new, fn_retro):
         # also if H2 shall be fixed, the rest of German pipelines, p_nom_min and p_nom_max are set to 0 first
         # p_nom and p_nom_opt are already 0
         carrier = ["H2 pipeline", "H2 pipeline retrofitted"]
-        n.links.loc[
-            (n.links.carrier.isin(carrier))
-            & (n.links.bus0.str.startswith("DE"))
-            & (n.links.bus1.str.startswith("DE"))
-            & (n.links.index.str.contains(str(baseyear))),
+        if baseyear == year_first:
+            # then same year's base H2 infrastructure will be set
+            # they are still extendable in optimization but p_nom_min (and optionally p_nom_max) is set
+            year = str(baseyear)
+        else:
+            # then previous optimization year's infrastructure will be replaced and all p_nom values need to be set
+            # since those links are no longer extendable in next period
+            year = str(year_p)
+            p_noms = ["p_nom_opt", "p_nom", "p_nom_min", "p_nom_max"]
+        net.links.loc[
+            (net.links.carrier.isin(carrier))
+            & (net.links.bus0.str.startswith("DE"))
+            & (net.links.bus1.str.startswith("DE"))
+            & (net.links.index.str.contains(year)),
             p_noms] = 0.0
     else:
         # else set only p_nom_min so h2 infrastructure will be the minimum but can be extended further if optimal
         p_noms = ["p_nom_min"]
 
     h2_retro_clustered["p_nom"] = np.floor(h2_retro_clustered.p_nom)
-    # convert p_nom to H2 capacity
+    # convert p_nom from CH4 to H2 capacity
     h2_retro_clustered.loc[:, ["p_nom"]] = h2_retro_clustered.loc[:, ["p_nom"]] * 2 * snakemake.params.H2_retrofit_capacity_per_CH4
 
-    n.links.loc[h2_retro_clustered.index, p_noms] \
+    net.links.loc[h2_retro_clustered.index, p_noms] \
         = h2_retro_clustered.p_nom
-    n.links.loc[h2_new_clustered.index, p_noms] \
+    net.links.loc[h2_new_clustered.index, p_noms] \
         = h2_new_clustered.p_nom
 
 
@@ -659,8 +653,13 @@ def _add_brownfield(n, year):
 
     n_p = pypsa.Network(snakemake.input.network_p, override_component_attrs=overrides)
     # call add_bownfield function from myopic workflow to add previous year's optimization results
+    # if set in config custom H2 network can be added as base infrastructure such as FNB H2 core network
+    # gas network is later optimized accordingly
+    if snakemake.params.H2_network_custom:
+        _ = set_gas_network(n_p, fn_gas)
+        set_H2_network(n_p, fn_new, fn_retro)
     add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
-                   snakemake.params.H2_retrofit_capacity_per_CH4)
+                   snakemake.params.H2_retrofit_capacity_per_CH4, build_back_FT_factor)
 
 # %%
 if __name__ == "__main__":
@@ -674,7 +673,7 @@ if __name__ == "__main__":
             ll="vopt",
             opts="",
             sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
-            planning_horizons=2045,
+            planning_horizons=2035,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
@@ -682,9 +681,21 @@ if __name__ == "__main__":
     update_config_with_sector_opts(snakemake.config, snakemake.wildcards.sector_opts)
 
     options = snakemake.params.sector
+    build_back_FT_factor = options.get("build_back_FT_factor")
     opts = snakemake.wildcards.sector_opts.split("-")
 
     baseyear = snakemake.params.baseyear
+    if snakemake.params.foresight == "myopic_stepwise":
+        planning_horizons = "planning_horizons_all"
+    else:
+        planning_horizons = "planning_horizons"
+    years_all = snakemake.config["scenario"][planning_horizons]
+    year_first = years_all[0]
+    year_p = years_all[years_all.index(baseyear)-1]
+
+    fn_gas = snakemake.input.clustered_gas_custom
+    fn_retro = snakemake.input.clustered_h2_retro_custom
+    fn_new = snakemake.input.clustered_h2_new_custom
 
     overrides = override_component_attrs(snakemake.input.overrides)
 
@@ -741,14 +752,11 @@ if __name__ == "__main__":
         if options.get("cluster_heat_buses", False):
             cluster_heat_buses(n)
 
-    # if set in config custom H2 network can be added as base infrastructure such as FNB H2 core network
-    # gas network is later optimized accordingly
-    if snakemake.params.H2_network_custom:
-        fn_gas = snakemake.input.clustered_gas_custom
-        fn_retro = snakemake.input.clustered_h2_retro_custom
-        fn_new = snakemake.input.clustered_h2_new_custom
-        gas_old, gas_new = set_gas_network(n, fn_gas)
-        set_H2_network(n, fn_new, fn_retro)
+        # if set in config custom H2 network can be added as base infrastructure such as FNB H2 core network
+        # gas network is later optimized accordingly
+        if snakemake.params.H2_network_custom:
+            gas_old, gas_new = set_gas_network(n, fn_gas)
+            set_H2_network(n, fn_new, fn_retro)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
 

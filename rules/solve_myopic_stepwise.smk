@@ -3,34 +3,39 @@
 # SPDX-License-Identifier: MIT
 
 if config["sector"]["H2_network_custom"]:
+    planning_horizons_all = config["scenario"]["planning_horizons_all"]
+    i = planning_horizons_all.index(int(config["scenario"]["planning_horizons"][0]))
+    if config["scenario"]["planning_horizons"][0] == planning_horizons_all[0]:
+        H2_INFRA_YEAR = str(planning_horizons_all[i])
+    else:
+        H2_INFRA_YEAR = str(planning_horizons_all[i - 1])
+
     rule cluster_h2_custom:
         params:
-            baseyear=config["scenario"]["planning_horizons"][0],
+            baseyear=H2_INFRA_YEAR,
             H2_network_custom=config["sector"]["H2_network_custom"],
             cluster_H2_network_custom=config["sector"]["cluster_H2_network_custom"],
             gas_network_custom=config["sector"]["gas_network_custom"],
             fix_H2=config["scenario"]["fix_H2"],
         input:
             onshore_regions=RESOURCES + "regions_onshore_elec_s{simpl}_{clusters}.geojson",
-            gas_network_custom = "data_exchange/gas_network_custom_{planning_horizons}.csv",
-            h2_network_custom_new = "data_exchange/h2_network_new_custom_{planning_horizons}.csv",
-            h2_network_custom_retro = "data_exchange/h2_network_retro_custom_{planning_horizons}.csv",
+            gas_network_custom = "data_exchange/gas_network_custom_"+H2_INFRA_YEAR+".csv",
+            h2_network_custom_new = "data_exchange/h2_network_new_custom_"+H2_INFRA_YEAR+".csv",
+            h2_network_custom_retro = "data_exchange/h2_network_retro_custom_"+H2_INFRA_YEAR+".csv",
         output:
-            clustered_h2_retro_custom=RESOURCES + "clustered_h2_network_retro_custom_s{simpl}_{clusters}_{planning_horizons}.csv",
-            clustered_h2_new_custom=RESOURCES + "clustered_h2_network_new_custom_s{simpl}_{clusters}_{planning_horizons}.csv",
-            clustered_gas_custom=RESOURCES + "clustered_gas_network_custom_s{simpl}_{clusters}_{planning_horizons}.csv",
-        wildcard_constraints:
-            planning_horizons=config["scenario"]["planning_horizons"][0],#only applies to baseyear
+            clustered_h2_retro_custom=RESOURCES + "clustered_h2_network_retro_custom_s{simpl}_{clusters}_"+H2_INFRA_YEAR+".csv",
+            clustered_h2_new_custom=RESOURCES + "clustered_h2_network_new_custom_s{simpl}_{clusters}_"+H2_INFRA_YEAR+".csv",
+            clustered_gas_custom=RESOURCES + "clustered_gas_network_custom_s{simpl}_{clusters}_"+H2_INFRA_YEAR+".csv",
         threads: 1
         resources:
             mem_mb=2000,
         log:
             LOGS
-            + "cluster_h2_custom_s{simpl}_{clusters}_{planning_horizons}.log",
+            + "cluster_h2_custom_s{simpl}_{clusters}.log",
         benchmark:
             (
                     BENCHMARKS
-                    + "cluster_h2_custom/elec_s{simpl}_{clusters}_{planning_horizons}"
+                    + "cluster_h2_custom/elec_s{simpl}_{clusters}"
             )
         conda:
             "../envs/environment.yaml"
