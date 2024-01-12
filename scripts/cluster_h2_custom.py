@@ -61,10 +61,6 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
 
-    update_config_with_sector_opts(snakemake.config, snakemake.wildcards.sector_opts)
-
-    logging.basicConfig(level=snakemake.config["logging"]["level"])
-
     baseyear = snakemake.params.baseyear
 
     fn_regions = snakemake.input.onshore_regions
