@@ -10,7 +10,7 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "20240107_ocgt_h2_lowcost_100h_test_myopic" # use this to keep track of runs with different settings
+  name: "20240113_100h_highdemand_test_myopic" # use this to keep track of runs with different settings
   name_base: "" # option for myopic_stepwise foresight. Set to empty str for first time step, otherwise set str to name of base run
   disable_progressbar: false # set to true to disable the progressbar
   shared_resources: true # set to true to share the default resources across runs
@@ -36,7 +36,7 @@ scenario:
 #  - 200H-T-H-B-I-A-solar+p3-linemaxext10
 #  - 1460SEG-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4
 #  - 200H-T-H-B-I-A-solar+p3-linemaxext10-gas+m2
-  - 100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2
+  - 100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.491-oil+m1.501
   planning_horizons:
 #  - 2020
   - 2030
@@ -435,24 +435,24 @@ sector:
   bev_avail_mean: 0.8
   v2g: true #allows feed-in to grid from EV battery
   #what is not EV or FCEV is oil-fuelled ICE
-  land_transport_fuel_cell_share:
+  land_transport_fuel_cell_share: # 0,002	0,014	0,157	0,250
     2020: 0
-    2030: 0.05
-    2035: 0.075
-    2040: 0.1
-    2045: 0.15
-  land_transport_electric_share:
+    2030: 0.002
+    2035: 0.014
+    2040: 0.157
+    2045: 0.25
+  land_transport_electric_share: # 0,415	0,606	0,644	0,700
     2020: 0
-    2030: 0.25
-    2035: 0.425
-    2040: 0.6
-    2045: 0.85
-  land_transport_ice_share:
+    2030: 0.415
+    2035: 0.606
+    2040: 0.644
+    2045: 0.7
+  land_transport_ice_share: # 0,583	0,379	0,199	0,050
     2020: 1
-    2030: 0.7
-    2035: 0.5
-    2040: 0.3
-    2045: 0
+    2030: 0.583
+    2035: 0.38
+    2040: 0.199
+    2045: 0.05
   transport_fuel_cell_efficiency: 0.5
   transport_internal_combustion_efficiency: 0.3
   agriculture_machinery_electric_share: 0
@@ -463,19 +463,19 @@ sector:
   MWh_MeOH_per_tCO2: 4.0321 # in LHV, source: DECHEMA (2017): Low carbon energy and feedstock for the European chemical industry , pg. 64.
   MWh_MeOH_per_MWh_e: 3.6907 # in LHV, source: DECHEMA (2017): Low carbon energy and feedstock for the European chemical industry , pg. 64.
   shipping_hydrogen_liquefaction: false # whether to consider liquefaction costs for shipping H2 demands
-  shipping_hydrogen_share:
+  shipping_hydrogen_share: # 0,040	0,045	0,050	0,080
     2020: 0
-    2030: 0
-    2035: 0
-    2040: 0
-    2045: 0
-  shipping_methanol_share:
+    2030: 0.04
+    2035: 0.045
+    2040: 0.05
+    2045: 0.08
+  shipping_methanol_share: # 0,260	0,455	0,650	0,920
     2020: 0
-    2030: 0.3
-    2035: 0.5
-    2040: 0.7
-    2045: 1
-  shipping_oil_share:
+    2030: 0.26
+    2035: 0.455
+    2040: 0.65
+    2045: 0.92
+  shipping_oil_share: # 0,700	0,500	0,300	0,000
     2020: 1
     2030: 0.7
     2035: 0.5
@@ -576,19 +576,19 @@ sector:
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#industry
 industry:
-  St_primary_fraction:  # fraction of steel produced via primary route versus secondary route (scrap+EAF); today fraction is 0.6
+  St_primary_fraction: # 0,676	0,624	0,547	0,521  # fraction of steel produced via primary route versus secondary route (scrap+EAF); today fraction is 0.6
     2020: 0.6
     2025: 0.55
-    2030: 0.5
-    2035: 0.45
-    2040: 0.4
-    2045: 0.3
-  DRI_fraction:  # fraction of the primary route converted to DRI + EAF
+    2030: 0.676
+    2035: 0.624
+    2040: 0.547
+    2045: 0.521
+  DRI_fraction: # 0,364	0,663	1,000	1,000  # fraction of the primary route converted to DRI + EAF
     2020: 0
     2025: 0
-    2030: 0.05
-    2035: 0.2
-    2040: 0.4
+    2030: 0.364
+    2035: 0.663
+    2040: 1
     2045: 1
   H2_DRI: 1.7   #H2 consumption in Direct Reduced Iron (DRI),  MWh_H2,LHV/ton_Steel from 51kgH2/tSt in Vogl et al (2018) doi:10.1016/j.jclepro.2018.08.279
   elec_DRI: 0.322   #electricity consumption in Direct Reduced Iron (DRI) shaft, MWh/tSt HYBRIT brochure https://ssabwebsitecdn.azureedge.net/-/media/hybrit/files/hybrit_brochure.pdf
