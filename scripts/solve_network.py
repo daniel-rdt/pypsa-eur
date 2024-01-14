@@ -574,6 +574,53 @@ def add_pipe_retrofit_constraint(n):
 
     n.model.add_constraints(lhs == rhs, name="Link-pipe_retrofit")
 
+def add_ocgt_retrofit_constraint(n, snapshots):
+    """
+    Add constraint for retrofitting existing OCGT gas plants to OCGT H2 plants.
+    """
+    logger.info("Add constraint for retrofitting gas boilers to H2 boilers.")
+
+    from pypsa.descriptors import get_activity_mask
+    c = "Link"
+    # existing OCGT plants
+    gas_i = n.links.query("carrier == 'OCGT' and ~p_nom_extendable and p_nom > 0").index
+    h2_i = n.links.query("carrier == 'OCGT H2 retrofitted' and p_nom_extendable").index
+    if h2_i.empty or gas_i.empty:
+        return
+
+    # store old p_nom_value for dispatch constraint
+    p_nom = n.links.loc[gas_i, "p_nom"]
+
+    # TODO: check if profile is necessary or if it should always be max capacity as limit
+    # electricity profile
+    cols = list(set(n.loads_t.p_set.columns) & set(n.loads.query("carrier.str.contains('electricity')").index))
+    # alternative with normalised profile
+    # profile = n.loads_t.p_set[cols].div(
+    #     n.loads_t.p_set[cols].groupby(level=0).max(), level=0
+    # )
+    # alternative with max capacity as limit
+    profile = n.loads_t.p_set[cols].div(
+        n.loads_t.p_set[cols], level=0
+    )
+
+    # to deal if value is zero
+    profile.fillna(0, inplace=True)
+    profile = profile.reindex(columns=n.links.loc[gas_i, "bus1"])
+    profile.columns = gas_i
+
+    rhs = profile.mul(p_nom)
+
+    dispatch = n.model["Link-p"]
+    active = get_activity_mask(n, c, snapshots, gas_i)
+    rhs = rhs[active]
+    p_gas = dispatch.sel(Link=gas_i)
+    p_h2 = dispatch.sel(Link=h2_i)
+
+    # under assumption that plant can be used in hybrid between carriers
+    lhs = p_gas + p_h2
+
+    n.model.add_constraints(lhs <= rhs, name="OCGT_retrofit")
+
 
 def extra_functionality(n, snapshots):
     """
@@ -600,6 +647,7 @@ def extra_functionality(n, snapshots):
             add_EQ_constraints(n, o)
     add_battery_constraints(n)
     add_pipe_retrofit_constraint(n)
+    add_ocgt_retrofit_constraint(n, snapshots)
 
 
 def solve_network(n, config, solving, opts="", **kwargs):
@@ -658,12 +706,12 @@ if __name__ == "__main__":
 
         snakemake = mock_snakemake(
             "solve_sector_network_myopic",
-            configfiles="config/config.yaml",
+            configfiles="config/config.highdemand.yaml",
             simpl="",
             opts="",
             clusters="180",
             ll="vopt",
-            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
+            sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2",
             planning_horizons="2035",
         )
     configure_logging(snakemake)

@@ -23,7 +23,7 @@ import pypsa
 import xarray as xr
 from _helpers import override_component_attrs, update_config_with_sector_opts
 from prepare_sector_network import cluster_heat_buses, define_spatial, prepare_costs
-from add_brownfield import add_brownfield, add_build_year_to_new_assets
+from add_brownfield import add_brownfield, add_build_year_to_new_assets, add_ocgt_retro
 from cluster_gas_network_custom import filter_for_country
 
 cc = coco.CountryConverter()
@@ -757,6 +757,9 @@ if __name__ == "__main__":
         if snakemake.params.H2_network_custom:
             gas_old, gas_new = set_gas_network(n, fn_gas)
             set_H2_network(n, fn_new, fn_retro)
+
+    if options["OCGT_H2_retrofitting"]:
+        add_ocgt_retro(n, baseyear)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
 
