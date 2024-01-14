@@ -4,7 +4,7 @@ logger = logging.getLogger(__name__)
 
 from _helpers import update_config_with_sector_opts
 import geopandas as gpd
-from cluster_gas_network_custom import load_custom_gas_network, add_geometries, build_clustered_gas_network, filter_for_country
+from cluster_gas_network_custom import load_custom_gas_network, add_geometries, build_clustered_gas_network, filter_for_country, aggregate_clustered_gas_network_custom
 
 
 def load_and_cluster(**fns):
@@ -21,8 +21,8 @@ def load_and_cluster(**fns):
         # TODO: add option to choose if only new pipelines should be exchanged
         if "build_year" in df.columns:
             df = df.loc[df.build_year == baseyear]
-        gdf = add_geometries(df, onshore_regions, map=False)
-        # cluster network
+
+        # select link name as kwarg
         if "retro" in fn_name:
             kwargs = dict(carrier="H2 pipeline retrofitted", year=baseyear)
         elif "new" in fn_name:
@@ -30,7 +30,15 @@ def load_and_cluster(**fns):
         elif "gas" in fn_name:
             kwargs = dict(carrier="gas pipeline", year=baseyear)
 
-        df_clustered = build_clustered_gas_network(gdf, onshore_regions, **kwargs)
+        # either cluster or only aggregate custom h2 network
+        if snakemake.params.cluster_H2_network_custom:
+            gdf = add_geometries(df, onshore_regions, map=False)
+            # cluster network
+            df_clustered = build_clustered_gas_network(gdf, onshore_regions, **kwargs)
+        else:
+            # if already clustered to pypsa regions only parallel pipelines need to be aggregated to total capacity
+            df_clustered = aggregate_clustered_gas_network_custom(df, **kwargs)
+
         nets.append(df_clustered)
         # df_clustered_de = filter_for_country(gas_pipes_rcm_clustered, "DE")
 
@@ -50,10 +58,6 @@ if __name__ == "__main__":
             sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
             planning_horizons=2035,
         )
-
-    logging.basicConfig(level=snakemake.config["logging"]["level"])
-
-    update_config_with_sector_opts(snakemake.config, snakemake.wildcards.sector_opts)
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
 
