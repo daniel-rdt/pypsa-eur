@@ -43,7 +43,7 @@ def load_custom_gas_network(path, **indexcol):
     """
     Loads and cleans custom gas network dataset.
     """
-    df = pd.read_csv(path, decimal=",", sep=";", **indexcol)
+    df = pd.read_csv(path, decimal=".", sep=",", **indexcol)
     # drop columns that are not needed
     to_drop = list(set(df.columns).intersection({"From_Node", "To_Node", "from_node", "to_node", "node0_pypsa_region", "node1_pypsa_region", "node0", "node1", "node0_x", "node0_y", "node1_x", "node1_y"}))
     df.drop(columns=to_drop, inplace=True)
@@ -54,7 +54,7 @@ def load_custom_gas_network(path, **indexcol):
         df["point1"] = gpd.points_from_xy(df.node1_long, df.node1_lat)
     df.drop(columns=to_drop, inplace=True)
     # convert from GWh/day to MWh/h
-    cap_col = list(set(df.columns).intersection({"CH4_80bar_GWh_d", "Cap_H2_GWh_d", "Cap_CH4_GWh_d"}))[0]
+    cap_col = list(set(df.columns).intersection({"CH4_80bar_GWh_d", "H2_80bar_GWh_d", "Cap_H2_GWh_d", "Cap_CH4_GWh_d"}))[0]
     df[cap_col] = df[cap_col] * 1e3 / 24
     # rename columns to pypsa names
     df.rename(columns={cap_col: "p_nom", "diameter": "diameter_mm"}, inplace=True)
@@ -186,6 +186,7 @@ def substitute_country_network(df1, df2, ctry):
             (df1[~(df1.bus0.str.startswith(ctry) & df1.bus1.str.startswith(ctry))]),
             df2
         ], axis=0).sort_index()
+
 def find_neighbors(gdf):
     """
     Finds neighbors for regions in GeoDataFrame and stores in separate column

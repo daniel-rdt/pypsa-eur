@@ -635,10 +635,30 @@ def set_H2_network(net, fn_new, fn_retro):
 
     h2_retro_clustered["p_nom"] = np.floor(h2_retro_clustered.p_nom)
     # convert p_nom from CH4 to H2 capacity
-    h2_retro_clustered.loc[:, ["p_nom"]] = h2_retro_clustered.loc[:, ["p_nom"]] * 2 * snakemake.params.H2_retrofit_capacity_per_CH4
+    h2_retro_clustered.loc[:, ["p_nom"]] = h2_retro_clustered.loc[:, ["p_nom"]] * snakemake.params.H2_retrofit_capacity_per_CH4
 
     net.links.loc[h2_retro_clustered.index, p_noms] \
         = h2_retro_clustered.p_nom
+
+    # set p_noms for existing h2_new_links
+    # if some new pipelines are not in old set -> add new links
+    h2_pipes_new = h2_new_clustered[~h2_new_clustered.index.isin(net.links.index)]
+    if not h2_pipes_new.empty:
+        net.madd(
+            "Link",
+            h2_pipes_new.index,
+            bus0=h2_pipes_new.bus0.values + " H2",
+            bus1=h2_pipes_new.bus1.values + " H2",
+            p_min_pu=-1,
+            p_nom_extendable=True,
+            length=h2_pipes_new.length.values,
+            capital_cost=costs.at["H2 (g) pipeline", "fixed"] * h2_pipes_new.length.values,
+            carrier="H2 pipeline",
+            lifetime=costs.at["H2 (g) pipeline", "lifetime"],
+        )
+        logger.info(f"Added {h2_pipes_new.index.values} as new links to the network.")
+
+    # set p_noms
     net.links.loc[h2_new_clustered.index, p_noms] \
         = h2_new_clustered.p_nom
 
@@ -659,7 +679,7 @@ def _add_brownfield(n, year):
         _ = set_gas_network(n_p, fn_gas)
         set_H2_network(n_p, fn_new, fn_retro)
     add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
-                   snakemake.params.H2_retrofit_capacity_per_CH4, build_back_FT_factor)
+                   snakemake.params.H2_retrofit_capacity_per_CH4, build_back_FT_factor, OCGT_H2_retrofitting)
 
 # %%
 if __name__ == "__main__":
@@ -672,7 +692,7 @@ if __name__ == "__main__":
             clusters="180",
             ll="vopt",
             opts="",
-            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
+            sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
             planning_horizons=2035,
         )
 
@@ -682,6 +702,7 @@ if __name__ == "__main__":
 
     options = snakemake.params.sector
     build_back_FT_factor = options.get("build_back_FT_factor")
+    OCGT_H2_retrofitting = options.get("OCGT_H2_retrofitting")
     opts = snakemake.wildcards.sector_opts.split("-")
 
     baseyear = snakemake.params.baseyear
@@ -693,14 +714,21 @@ if __name__ == "__main__":
     year_first = years_all[0]
     year_p = years_all[years_all.index(baseyear)-1]
 
-    fn_gas = snakemake.input.clustered_gas_custom
-    fn_retro = snakemake.input.clustered_h2_retro_custom
-    fn_new = snakemake.input.clustered_h2_new_custom
+    if snakemake.params.H2_network_custom:
+        fn_gas = snakemake.input.clustered_gas_custom
+        fn_retro = snakemake.input.clustered_h2_retro_custom
+        fn_new = snakemake.input.clustered_h2_new_custom
 
     overrides = override_component_attrs(snakemake.input.overrides)
 
     if (snakemake.params.name_base) and (snakemake.params.foresight == "myopic_stepwise"):
         n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
+        Nyears = n.snapshot_weightings.generators.sum() / 8760.0
+        costs = prepare_costs(
+            snakemake.input.costs,
+            snakemake.params.costs,
+            Nyears,
+        )
         _add_brownfield(n, baseyear)
 
     else:
@@ -758,7 +786,7 @@ if __name__ == "__main__":
             gas_old, gas_new = set_gas_network(n, fn_gas)
             set_H2_network(n, fn_new, fn_retro)
 
-    if options["OCGT_H2_retrofitting"]:
+    if OCGT_H2_retrofitting:
         add_ocgt_retro(n, baseyear)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))

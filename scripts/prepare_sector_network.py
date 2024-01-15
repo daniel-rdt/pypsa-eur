@@ -3286,8 +3286,8 @@ if __name__ == "__main__":
             opts="",
             clusters="180",
             ll="vopt",
-            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10",
-            planning_horizons="2030",
+            sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
+            planning_horizons="2035",
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])

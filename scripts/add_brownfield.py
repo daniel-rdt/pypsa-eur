@@ -46,7 +46,7 @@ def add_build_year_to_new_assets(n, baseyear):
             c.pnl[attr].rename(columns=rename, inplace=True)
 
 
-def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_per_CH4, build_back_FT_factor):
+def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_per_CH4, build_back_FT_factor, OCGT_H2_retrofitting):
     logger.info(f"Preparing brownfield for the year {year}")
 
     # electric transmission grid set optimised capacities of previous as minimum
@@ -103,15 +103,14 @@ def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_pe
         # option to build back FT by factor
         if build_back_FT_factor:
             if c.name == "Link":
-                logger.info(f"Allow for Fischer-Tropsch build back down to {(1-options.get('build_back_FT_factor'))*100}% of p_nom_opt.")
+                logger.info(f"Allow for Fischer-Tropsch build back down to {(1-build_back_FT_factor)*100}% of p_nom_opt.")
                 ft_i = (c.df.carrier == "Fischer-Tropsch")
-                bb_ft_factor = options.get("build_back_FT_factor")
                 # set p_nom_extendable back to true to allow for build back
                 c.df.loc[ft_i, [attr + "_nom_extendable"]] = True
                 # limit to build back by setting p_nom_max to former p_nom_opt value
                 c.df.loc[ft_i, [attr + "_nom_max"]] = c.df.loc[ft_i, attr + "_nom_opt"]
                 # set build back range according to build_back_FT_factor
-                c.df.loc[ft_i, [attr + "_nom_min"]] = c.df.loc[ft_i, attr + "_nom_opt"] * (1 - bb_ft_factor)
+                c.df.loc[ft_i, [attr + "_nom_min"]] = c.df.loc[ft_i, attr + "_nom_opt"] * (1 - build_back_FT_factor)
                 # stranded assets costs are then capex of build back capacities minus FOM
 
         n.import_components_from_dataframe(c.df, c.name)
@@ -182,7 +181,7 @@ def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_pe
         n.links.loc[new_pipes, "p_nom"] = 0.0
         n.links.loc[new_pipes, "p_nom_min"] = 0.0
 
-    if options["OCGT_H2_retrofitting"]:
+    if OCGT_H2_retrofitting:
         # subtract retrofitted ocgt from existing ocgt
         ocgt_i = n.links.query("carrier == 'OCGT' and ~p_nom_extendable").index
         year_p_str = str(year_p)
@@ -282,6 +281,7 @@ if __name__ == "__main__":
     options = snakemake.params.sector
 
     build_back_FT_factor = options.get("build_back_FT_factor")
+    OCGT_H2_retrofitting = options.get("OCGT_H2_retrofitting")
 
     overrides = override_component_attrs(snakemake.input.overrides)
     n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
@@ -291,9 +291,9 @@ if __name__ == "__main__":
     n_p = pypsa.Network(snakemake.input.network_p, override_component_attrs=overrides)
 
     add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
-                   snakemake.params.H2_retrofit_capacity_per_CH4, build_back_FT_factor)
+                   snakemake.params.H2_retrofit_capacity_per_CH4, build_back_FT_factor, OCGT_H2_retrofitting)
 
-    if options["OCGT_H2_retrofitting"]:
+    if OCGT_H2_retrofitting:
         add_ocgt_retro(n, year)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
