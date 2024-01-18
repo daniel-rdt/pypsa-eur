@@ -20,6 +20,7 @@ def load_and_cluster(**fns):
         # filter for baseyear (only add new pipelines)
         # TODO: add option to choose if only new pipelines should be exchanged
         if "build_year" in df.columns:
+            df.loc[:, "build_year"] = df.build_year.astype(str)
             df = df.loc[df.build_year == baseyear]
 
         # select link name as kwarg
@@ -56,25 +57,32 @@ if __name__ == "__main__":
             ll="vopt",
             opts="",
             sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
-            planning_horizons=2035,
+            planning_horizons=2045,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
 
-    baseyear = snakemake.params.baseyear
+    baseyear_config = snakemake.params.baseyear
 
     fn_regions = snakemake.input.onshore_regions
     onshore_regions = gpd.read_file(fn_regions).set_index("name")
 
     # if set in config custom H2 network can be added as base infrastructure such as FNB H2 core network
     # gas network is also replaced accordingly
-    fn_gas = snakemake.input.gas_network_custom
-    fn_retro = snakemake.input.h2_network_custom_retro
-    fn_new = snakemake.input.h2_network_custom_new
+
+    if snakemake.config["sector"]["H2_network_same_year"]:
+        baseyear = str(snakemake.wildcards.planning_horizons)
+    else:
+        baseyear = baseyear_config
+
+    fn_gas = snakemake.input.gas_network_custom.replace(baseyear_config, baseyear)
+    fn_retro = snakemake.input.h2_network_custom_retro.replace(baseyear_config, baseyear)
+    fn_new = snakemake.input.h2_network_custom_new.replace(baseyear_config, baseyear)
+
     h2_new_clustered, h2_retro_clustered, gas_clustered = load_and_cluster(
         **dict(fn_new=fn_new, fn_retro=fn_retro, fn_gas=fn_gas))
 
     # save clustered networks
-    h2_new_clustered.to_csv(snakemake.output.clustered_h2_new_custom)
-    h2_retro_clustered.to_csv(snakemake.output.clustered_h2_retro_custom)
-    gas_clustered.to_csv(snakemake.output.clustered_gas_custom)
+    h2_new_clustered.to_csv(snakemake.output.clustered_h2_new_custom.replace(baseyear_config, baseyear))
+    h2_retro_clustered.to_csv(snakemake.output.clustered_h2_retro_custom.replace(baseyear_config, baseyear))
+    gas_clustered.to_csv(snakemake.output.clustered_gas_custom.replace(baseyear_config, baseyear))

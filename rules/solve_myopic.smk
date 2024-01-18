@@ -8,6 +8,7 @@ rule add_existing_baseyear:
         baseyear=config["scenario"]["planning_horizons"][0],
         name_base=config["run"]["name_base"],
         sector=config["sector"],
+        foresight=config["foresight"],
         existing_capacities=config["existing_capacities"],
         costs=config["costs"],
         H2_network_custom=config["sector"]["H2_network_custom"],

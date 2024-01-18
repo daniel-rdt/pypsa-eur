@@ -599,7 +599,7 @@ def set_gas_network(net, fn_gas):
 
     return gas_old, gas_clustered_de
 
-def set_H2_network(net, fn_new, fn_retro):
+def set_H2_network(net, fn_new, fn_retro, baseyear, year_first, year_p, H2_retrofit_capacity_per_CH4):
     """
     Sets H2 network pipeline capacities according to input gas network mapped to clustered nodes.
     """
@@ -608,34 +608,30 @@ def set_H2_network(net, fn_new, fn_retro):
     h2_new_clustered = pd.read_csv(fn_new, index_col=0)
 
     # substitute H2 network capacities by setting p_nom values
-    if snakemake.params.fix_H2:
-        # if H2 shall be fixed, set p_nom_min and p_nom_max so pipelines will be extended exactly to nominal value
+    # also if H2 shall be fixed, the rest of German pipelines, p_nom_min and p_nom_max are set to 0 first
+    # p_nom and p_nom_opt are already 0
+    carrier = ["H2 pipeline", "H2 pipeline retrofitted"]
+    if baseyear == year_first:
+        # then same year's base H2 infrastructure will be set
+        # they are still extendable in optimization but p_nom_min (and optionally p_nom_max) is set
+        year = str(baseyear)
+        # if H2 is first year, set p_nom_min and p_nom_max so pipelines will be extended exactly to nominal value
         p_noms = ["p_nom_min", "p_nom_max"]
-        # also if H2 shall be fixed, the rest of German pipelines, p_nom_min and p_nom_max are set to 0 first
-        # p_nom and p_nom_opt are already 0
-        carrier = ["H2 pipeline", "H2 pipeline retrofitted"]
-        if baseyear == year_first:
-            # then same year's base H2 infrastructure will be set
-            # they are still extendable in optimization but p_nom_min (and optionally p_nom_max) is set
-            year = str(baseyear)
-        else:
-            # then previous optimization year's infrastructure will be replaced and all p_nom values need to be set
-            # since those links are no longer extendable in next period
-            year = str(year_p)
-            p_noms = ["p_nom_opt", "p_nom", "p_nom_min", "p_nom_max"]
-        net.links.loc[
-            (net.links.carrier.isin(carrier))
-            & (net.links.bus0.str.startswith("DE"))
-            & (net.links.bus1.str.startswith("DE"))
-            & (net.links.index.str.contains(year)),
-            p_noms] = 0.0
     else:
-        # else set only p_nom_min so h2 infrastructure will be the minimum but can be extended further if optimal
-        p_noms = ["p_nom_min"]
+        # then previous optimization year's infrastructure will be replaced and all p_nom values need to be set
+        # since those links are no longer extendable in next period
+        year = str(year_p)
+        p_noms = ["p_nom_opt", "p_nom", "p_nom_min", "p_nom_max"]
+    net.links.loc[
+        (net.links.carrier.isin(carrier))
+        & (net.links.bus0.str.startswith("DE"))
+        & (net.links.bus1.str.startswith("DE"))
+        & (net.links.index.str.contains(year)),
+        p_noms] = 0.0
 
     h2_retro_clustered["p_nom"] = np.floor(h2_retro_clustered.p_nom)
     # convert p_nom from CH4 to H2 capacity
-    h2_retro_clustered.loc[:, ["p_nom"]] = h2_retro_clustered.loc[:, ["p_nom"]] * snakemake.params.H2_retrofit_capacity_per_CH4
+    h2_retro_clustered.loc[:, ["p_nom"]] = h2_retro_clustered.loc[:, ["p_nom"]] * H2_retrofit_capacity_per_CH4
 
     net.links.loc[h2_retro_clustered.index, p_noms] \
         = h2_retro_clustered.p_nom
@@ -677,7 +673,7 @@ def _add_brownfield(n, year):
     # gas network is later optimized accordingly
     if snakemake.params.H2_network_custom:
         _ = set_gas_network(n_p, fn_gas)
-        set_H2_network(n_p, fn_new, fn_retro)
+        set_H2_network(n_p, fn_new, fn_retro, baseyear, year_first, year_p, H2_retrofit_capacity_per_CH4)
     add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
                    snakemake.params.H2_retrofit_capacity_per_CH4, build_back_FT_factor, OCGT_H2_retrofitting)
 
@@ -693,7 +689,7 @@ if __name__ == "__main__":
             ll="vopt",
             opts="",
             sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
-            planning_horizons=2035,
+            planning_horizons=2040,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
@@ -703,6 +699,7 @@ if __name__ == "__main__":
     options = snakemake.params.sector
     build_back_FT_factor = options.get("build_back_FT_factor")
     OCGT_H2_retrofitting = options.get("OCGT_H2_retrofitting")
+    H2_retrofit_capacity_per_CH4 = options.get("H2_retrofit_capacity_per_CH4")
     opts = snakemake.wildcards.sector_opts.split("-")
 
     baseyear = snakemake.params.baseyear
@@ -784,7 +781,7 @@ if __name__ == "__main__":
         # gas network is later optimized accordingly
         if snakemake.params.H2_network_custom:
             gas_old, gas_new = set_gas_network(n, fn_gas)
-            set_H2_network(n, fn_new, fn_retro)
+            set_H2_network(n, fn_new, fn_retro, baseyear, year_first, year_p, H2_retrofit_capacity_per_CH4)
 
     if OCGT_H2_retrofitting:
         add_ocgt_retro(n, baseyear)
