@@ -10,25 +10,26 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "20240115_100h_lowdemand_gasm250%_test_myopic" # use this to keep track of runs with different settings
+  name: "20240118_23h_defaultdemand_myopic_stepwise_2030" # use this to keep track of runs with different settings
   name_base: "" # option for myopic_stepwise foresight. Set to empty str for first time step, otherwise set str to name of base run
   disable_progressbar: false # set to true to disable the progressbar
   shared_resources: true # set to true to share the default resources across runs
   shared_cutouts: true # set to true to share the default cutout(s) across runs
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#foresight
-foresight: myopic
+foresight: myopic_stepwise
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#scenario
 # Wildcard docs in https://pypsa-eur.readthedocs.io/en/latest/wildcards.html
 scenario:
   sector_opts:
-  - 100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5
+#  - 100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4
+  - 23H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5
   planning_horizons:
   - 2030
-  - 2035
-  - 2040
-  - 2045
+#  - 2035
+#  - 2040
+#  - 2045
   planning_horizons_all:
   - 2030
   - 2035
@@ -39,32 +40,38 @@ scenario:
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#sector
 sector:
   #what is not EV or FCEV is oil-fuelled ICE
-  land_transport_fuel_cell_share: # 0	0	0	0
-    2030: 0
-    2035: 0
-    2040: 0
+  land_transport_fuel_cell_share:
+    2020: 0
+    2030: 0.05
+    2035: 0.075
+    2040: 0.1
+    2045: 0.15
+  land_transport_electric_share:
+    2020: 0
+    2030: 0.25
+    2035: 0.425
+    2040: 0.6
+    2045: 0.85
+  land_transport_ice_share:
+    2020: 1
+    2030: 0.7
+    2035: 0.5
+    2040: 0.3
     2045: 0
-  land_transport_electric_share: # 0,528	0,835	0,945	0,988
-    2030: 0.290
-    2035: 0.494
-    2040: 0.697
-    2045: 0.988
-  land_transport_ice_share: # 0,472	0,165	0,055	0,012
-    2030: 0.710
-    2035: 0.506
-    2040: 0.303
-    2045: 0.012
   shipping_hydrogen_share:
+    2020: 0
     2030: 0
     2035: 0
     2040: 0
     2045: 0
   shipping_methanol_share:
+    2020: 0
     2030: 0.3
     2035: 0.5
     2040: 0.7
     2045: 1
   shipping_oil_share:
+    2020: 1
     2030: 0.7
     2035: 0.5
     2040: 0.3
@@ -82,15 +89,19 @@ sector:
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#industry
 industry:
   St_primary_fraction:  # fraction of steel produced via primary route versus secondary route (scrap+EAF); today fraction is 0.6
+    2020: 0.6
+    2025: 0.55
     2030: 0.5
     2035: 0.45
     2040: 0.4
     2045: 0.3
   DRI_fraction:  # fraction of the primary route converted to DRI + EAF
+    2020: 0
+    2025: 0
     2030: 0.05
     2035: 0.2
     2040: 0.4
     2045: 1
   HVC_primary_fraction: 1. # fraction of today's HVC produced via primary route
-  HVC_mechanical_recycling_fraction: 0.165 # fraction of today's HVC produced via mechanical recycling
-  HVC_chemical_recycling_fraction: 0.085 # fraction of today's HVC produced via chemical recycling
+  HVC_mechanical_recycling_fraction: 0. # fraction of today's HVC produced via mechanical recycling
+  HVC_chemical_recycling_fraction: 0. # fraction of today's HVC produced via chemical recycling
