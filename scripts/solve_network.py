@@ -578,7 +578,6 @@ def add_ocgt_retrofit_constraint(n, snapshots):
     """
     Add constraint for retrofitting existing OCGT gas plants to OCGT H2 plants.
     """
-    logger.info("Add constraint for retrofitting gas boilers to H2 boilers.")
 
     from pypsa.descriptors import get_activity_mask
     c = "Link"
@@ -620,6 +619,7 @@ def add_ocgt_retrofit_constraint(n, snapshots):
     lhs = p_gas + p_h2
 
     n.model.add_constraints(lhs <= rhs, name="OCGT_retrofit")
+    logger.info("Added constraint for retrofitting OCGT gas to OCGT H2.")
 
 
 def extra_functionality(n, snapshots):
@@ -706,13 +706,13 @@ if __name__ == "__main__":
 
         snakemake = mock_snakemake(
             "solve_sector_network_myopic",
-            configfiles="config/config.highdemand.yaml",
+            configfiles="config/config.yaml",
             simpl="",
             opts="",
             clusters="180",
             ll="vopt",
-            sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2",
-            planning_horizons="2035",
+            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
+            planning_horizons="2030",
         )
     configure_logging(snakemake)
     if "sector_opts" in snakemake.wildcards.keys():

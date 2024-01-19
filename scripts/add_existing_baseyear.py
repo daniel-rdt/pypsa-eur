@@ -688,8 +688,8 @@ if __name__ == "__main__":
             clusters="180",
             ll="vopt",
             opts="",
-            sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
-            planning_horizons=2040,
+            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
+            planning_horizons=2030,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
@@ -774,14 +774,14 @@ if __name__ == "__main__":
                 default_lifetime,
             )
 
-        if options.get("cluster_heat_buses", False):
-            cluster_heat_buses(n)
-
         # if set in config custom H2 network can be added as base infrastructure such as FNB H2 core network
         # gas network is later optimized accordingly
         if snakemake.params.H2_network_custom:
             gas_old, gas_new = set_gas_network(n, fn_gas)
             set_H2_network(n, fn_new, fn_retro, baseyear, year_first, year_p, H2_retrofit_capacity_per_CH4)
+
+    if options.get("cluster_heat_buses", False):
+        cluster_heat_buses(n)
 
     if OCGT_H2_retrofitting:
         add_ocgt_retro(n, baseyear)
