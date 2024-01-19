@@ -34,10 +34,7 @@ def assign_locations(n):
         ifind = pd.Series(c.df.index.str.find(" ", start=4), c.df.index)
         for i in ifind.unique():
             names = ifind.index[ifind == i]
-            if i == -1:
-                c.df.loc[names, "location"] = ""
-            else:
-                c.df.loc[names, "location"] = names.str[:i]
+            c.df.loc[names, "location"] = "" if i == -1 else names.str[:i]
 
 
 def calculate_nodal_cfs(n, label, nodal_cfs):
@@ -563,9 +560,9 @@ def calculate_market_values(n, label, market_values):
 
         dispatch = (
             n.generators_t.p[gens]
-            .groupby(n.generators.loc[gens, "bus"], axis=1)
+            .T.groupby(n.generators.loc[gens, "bus"])
             .sum()
-            .reindex(columns=buses, fill_value=0.0)
+            .T.reindex(columns=buses, fill_value=0.0)
         )
 
         revenue = dispatch * n.buses_t.marginal_price[buses]
@@ -586,9 +583,9 @@ def calculate_market_values(n, label, market_values):
 
             dispatch = (
                 n.links_t["p" + i][links]
-                .groupby(n.links.loc[links, "bus" + i], axis=1)
+                .T.groupby(n.links.loc[links, "bus" + i])
                 .sum()
-                .reindex(columns=buses, fill_value=0.0)
+                .T.reindex(columns=buses, fill_value=0.0)
             )
 
             revenue = dispatch * n.buses_t.marginal_price[buses]
@@ -656,8 +653,7 @@ def make_summaries(networks_dict):
     for label, filename in networks_dict.items():
         logger.info(f"Make summary for scenario {label}, using {filename}")
 
-        overrides = override_component_attrs(snakemake.input.overrides)
-        n = pypsa.Network(filename, override_component_attrs=overrides)
+        n = pypsa.Network(filename)
 
         assign_carriers(n)
         assign_locations(n)

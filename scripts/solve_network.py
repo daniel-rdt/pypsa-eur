@@ -663,6 +663,8 @@ def solve_network(n, config, solving, opts="", **kwargs):
     # add to network for extra_functionality
     n.config = config
     n.opts = opts
+    if solver_name == "gurobi":
+        logging.getLogger("gurobipy").setLevel(logging.CRITICAL)
 
     skip_iterations = cf_solving.get("skip_iterations", False)
     if not n.lines.s_nom_extendable.any():
@@ -711,7 +713,7 @@ if __name__ == "__main__":
             opts="",
             clusters="180",
             ll="vopt",
-            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
+            sector_opts="8760H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
             planning_horizons="2030",
         )
     configure_logging(snakemake)

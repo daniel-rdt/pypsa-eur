@@ -25,7 +25,7 @@ from make_summary import assign_carriers
 from plot_summary import preferred_order, rename_techs
 from pypsa.plot import add_legend_circles, add_legend_lines, add_legend_patches
 
-plt.style.use(["ggplot", "matplotlibrc"])
+plt.style.use(["ggplot"])
 
 
 def rename_techs_tyndp(tech):
@@ -264,12 +264,7 @@ def group_pipes(df, drop_direction=False):
         lambda x: f"H2 pipeline {x.bus0.replace(' H2', '')} <-> {x.bus1.replace(' H2', '')}",
         axis=1,
     )
-    # group pipelines connecting the same buses and rename them for plotting
-    pipe_capacity = df.groupby(level=0).agg(
-        {"p_nom_opt": sum, "bus0": "first", "bus1": "first", "index_orig": "first"}
-    )
-
-    return pipe_capacity
+    return df.groupby(level=0).agg({"p_nom_opt": "sum", "bus0": "first", "bus1": "first", "index_orig": "first"})
 
 
 def plot_h2_map(network, regions):
@@ -359,7 +354,7 @@ def plot_h2_map(network, regions):
 
     # group links by summing up p_nom values and taking the first value of the rest of the columns
     other_cols = dict.fromkeys(n.links.columns.drop(["p_nom_opt", "p_nom"]), "first")
-    n.links = n.links.groupby(level=0).agg({"p_nom_opt": sum, "p_nom": sum, **other_cols})
+    n.links = n.links.groupby(level=0).agg({"p_nom_opt": "sum", "p_nom": "sum", **other_cols})
 
     link_widths_total = link_widths_total.reindex(n.links.index).fillna(0.0)
     link_widths_total[n.links.p_nom_opt < line_lower_threshold] = 0.0
@@ -510,7 +505,7 @@ def plot_ch4_map(network):
     # make a fake MultiIndex so that area is correct for legend
     fossil_gas.index = pd.MultiIndex.from_product([fossil_gas.index, ["fossil gas"]])
 
-    methanation_i = n.links[n.links.carrier.isin(["helmeth", "Sabatier"])].index
+    methanation_i = n.links.query("carrier == 'Sabatier'").index
     methanation = (
         abs(
             n.links_t.p1.loc[:, methanation_i].mul(
@@ -559,7 +554,7 @@ def plot_ch4_map(network):
     link_widths_orig = n.links.p_nom / linewidth_factor
     link_widths_orig[n.links.p_nom < line_lower_threshold] = 0.0
 
-    max_usage = n.links_t.p0.abs().max(axis=0)
+    max_usage = n.links_t.p0.drop(columns=to_remove).abs().max(axis=0)
     link_widths_used = max_usage / linewidth_factor
     link_widths_used[max_usage < line_lower_threshold] = 0.0
 
@@ -931,14 +926,13 @@ if __name__ == "__main__":
             opts="",
             clusters="180",
             ll="vopt",
-            sector_opts="1460SEG-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
+            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
             planning_horizons="2030",
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
 
-    overrides = override_component_attrs(snakemake.input.overrides)
-    n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
+    n = pypsa.Network(snakemake.input.network)
 
     regions = gpd.read_file(snakemake.input.regions).set_index("name")
 

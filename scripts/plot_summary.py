@@ -49,6 +49,10 @@ def rename_techs(label):
         # "H2 Fuel Cell": "hydrogen storage",
         # "H2 pipeline": "hydrogen storage",
         "battery": "battery storage",
+        "H2 for industry": "H2 for industry",
+        "land transport fuel cell": "land transport fuel cell",
+        "land transport oil": "land transport oil",
+        "oil shipping": "shipping oil",
         # "CC": "CC"
     }
 
@@ -151,7 +155,7 @@ def plot_costs():
 
     df = df.drop(to_drop)
 
-    logger.info(f"Total system cost of {round(df.sum()[0])} EUR billion per year")
+    logger.info(f"Total system cost of {round(df.sum().iloc[0])} EUR billion per year")
 
     new_index = preferred_order.intersection(df.index).append(
         df.index.difference(preferred_order)
@@ -211,7 +215,7 @@ def plot_energy():
 
     df = df.drop(to_drop)
 
-    logger.info(f"Total energy of {round(df.sum()[0])} TWh/a")
+    logger.info(f"Total energy of {round(df.sum().iloc[0])} TWh/a")
 
     new_index = preferred_order.intersection(df.index).append(
         df.index.difference(preferred_order)
@@ -279,7 +283,7 @@ def plot_balances():
         # remove trailing link ports
         df.index = [
             i[:-1]
-            if ((i not in ["co2", "NH3"]) and (i[-1:] in ["0", "1", "2", "3"]))
+            if ((i not in ["co2", "NH3", "H2"]) and (i[-1:] in ["0", "1", "2", "3"]))
             else i
             for i in df.index
         ]
@@ -290,10 +294,7 @@ def plot_balances():
             df.abs().max(axis=1) < snakemake.params.plotting["energy_threshold"] / 10
         ]
 
-        if v[0] in co2_carriers:
-            units = "MtCO2/a"
-        else:
-            units = "TWh/a"
+        units = "MtCO2/a" if v[0] in co2_carriers else "TWh/a"
 
         logger.debug(
             f"Dropping technology energy balance smaller than {snakemake.params['plotting']['energy_threshold']/10} {units}"
@@ -302,7 +303,8 @@ def plot_balances():
 
         df = df.drop(to_drop)
 
-        logger.debug(f"Total energy balance for {v} of {round(df.sum()[0],2)} {units}")
+        logger.debug(
+            f"Total energy balance for {v} of {round(df.sum().iloc[0],2)} {units}")
 
         if df.empty:
             continue
