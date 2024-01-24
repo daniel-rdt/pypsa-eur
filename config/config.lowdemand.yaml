@@ -78,6 +78,7 @@ sector:
   cluster_H2_network_custom: false # if set to true custom H2 network needs to be clustered to PyPSA regions, else pipelines are only aggregated if necessary
   H2_retrofit: true  # if set to True existing gas pipes can be retrofitted to H2 pipes
   H2_retrofit_capacity_per_CH4: 0.849  # ratio for H2 capacity per original CH4 capacity of retrofitted pipelines
+  reoptimise_h2: false  # whether to reoptimise same year's H2 infrastructure in myopic stepwise workflow
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#industry
 industry:

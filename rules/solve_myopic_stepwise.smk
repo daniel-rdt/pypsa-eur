@@ -5,10 +5,12 @@
 if config["sector"]["H2_network_custom"]:
     planning_horizons_all = config["scenario"]["planning_horizons_all"]
     i = planning_horizons_all.index(int(config["scenario"]["planning_horizons"][0]))
-    if config["scenario"]["planning_horizons"][0] == planning_horizons_all[0]:
+    if (config["sector"]["reoptimise_h2"]) or (config["run"]["name"] == config["run"]["name_base"]):
         H2_INFRA_YEAR = str(planning_horizons_all[i])
+        DIR = RDIR
     else:
         H2_INFRA_YEAR = str(planning_horizons_all[i - 1])
+        DIR = PRDIR
 
     rule cluster_h2_custom:
         params:
@@ -16,16 +18,34 @@ if config["sector"]["H2_network_custom"]:
             H2_network_custom=config["sector"]["H2_network_custom"],
             cluster_H2_network_custom=config["sector"]["cluster_H2_network_custom"],
             gas_network_custom=config["sector"]["gas_network_custom"],
-            fix_H2=config["scenario"]["fix_H2"],
+            result_dir=RESULTS,
         input:
             onshore_regions=RESOURCES + "regions_onshore_elec_s{simpl}_{clusters}.geojson",
-            gas_network_custom = "data_exchange/gas_network_custom_"+H2_INFRA_YEAR+".csv",
-            h2_network_custom_new = "data_exchange/h2_network_new_custom_"+H2_INFRA_YEAR+".csv",
-            h2_network_custom_retro = "data_exchange/h2_network_retro_custom_"+H2_INFRA_YEAR+".csv",
+            gas_network_custom="results/"
+                                + DIR
+                                + "h2_networks_custom/gas_network_custom_"+H2_INFRA_YEAR+".csv",
+            h2_network_custom_new="results/"
+                                   + DIR
+                                   + "h2_networks_custom/h2_network_new_custom_"+H2_INFRA_YEAR+".csv",
+            h2_network_custom_retro="results/"
+                                   + DIR
+                                   + "h2_networks_custom/h2_network_retro_custom_"+H2_INFRA_YEAR+".csv",
         output:
-            clustered_h2_retro_custom=RESOURCES + "clustered_h2_network_retro_custom_s{simpl}_{clusters}_"+H2_INFRA_YEAR+".csv",
-            clustered_h2_new_custom=RESOURCES + "clustered_h2_network_new_custom_s{simpl}_{clusters}_"+H2_INFRA_YEAR+".csv",
-            clustered_gas_custom=RESOURCES + "clustered_gas_network_custom_s{simpl}_{clusters}_"+H2_INFRA_YEAR+".csv",
+            clustered_h2_retro_custom="results/"
+                                      + DIR
+                                      + "h2_networks_custom/clustered_h2_network_retro_custom_s{simpl}_{clusters}_"
+                                      + H2_INFRA_YEAR
+                                      + ".csv",
+            clustered_h2_new_custom="results/"
+                                    + DIR
+                                    + "h2_networks_custom/clustered_h2_network_new_custom_s{simpl}_{clusters}_"
+                                    + H2_INFRA_YEAR
+                                    + ".csv",
+            clustered_gas_custom="results/"
+                                 + DIR
+                                 + "h2_networks_custom/clustered_gas_network_custom_s{simpl}_{clusters}_"
+                                 + H2_INFRA_YEAR
+                                 + ".csv",
         threads: 1
         resources:
             mem_mb=2000,
@@ -65,7 +85,6 @@ rule add_existing_baseyear:
         threshold_capacity=config["existing_capacities"]["threshold_capacity"],
         H2_network_custom=config["sector"]["H2_network_custom"],
         gas_network_custom=config["sector"]["gas_network_custom"],
-        fix_H2=config["scenario"]["fix_H2"],
     input:
         overrides="data/override_component_attrs",
         network=RESULTS

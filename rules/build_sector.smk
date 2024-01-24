@@ -755,7 +755,6 @@ rule prepare_sector_network:
         eurostat_report_year=config["energy"]["eurostat_report_year"],
         RDIR=RDIR,
         gas_network_custom=config["sector"]["gas_network_custom"],
-        fix_H2=config["scenario"]["fix_H2"]
     input:
         **build_retro_cost_output,
         **build_biomass_transport_costs_output,

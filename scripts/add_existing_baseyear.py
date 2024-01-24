@@ -599,7 +599,8 @@ def set_gas_network(net, fn_gas):
 
     return gas_old, gas_clustered_de
 
-def set_H2_network(net, fn_new, fn_retro, baseyear, year_first, year_p, H2_retrofit_capacity_per_CH4):
+
+def set_h2_network(net, fn_new, fn_retro, exchange_year, h2_retrofit_capacity_per_ch4, costs, reoptimise_h2=False):
     """
     Sets H2 network pipeline capacities according to input gas network mapped to clustered nodes.
     """
@@ -611,17 +612,16 @@ def set_H2_network(net, fn_new, fn_retro, baseyear, year_first, year_p, H2_retro
     # also if H2 shall be fixed, the rest of German pipelines, p_nom_min and p_nom_max are set to 0 first
     # p_nom and p_nom_opt are already 0
     carrier = ["H2 pipeline", "H2 pipeline retrofitted"]
-    if baseyear == year_first:
+    if reoptimise_h2:
         # then same year's base H2 infrastructure will be set
-        # they are still extendable in optimization but p_nom_min (and optionally p_nom_max) is set
-        year = str(baseyear)
-        # if H2 is first year, set p_nom_min and p_nom_max so pipelines will be extended exactly to nominal value
+        # set p_nom_min and p_nom_max, so pipelines will be extended exactly to nominal value
         p_noms = ["p_nom_min", "p_nom_max"]
     else:
         # then previous optimization year's infrastructure will be replaced and all p_nom values need to be set
         # since those links are no longer extendable in next period
-        year = str(year_p)
         p_noms = ["p_nom_opt", "p_nom", "p_nom_min", "p_nom_max"]
+
+    year = str(exchange_year)
     net.links.loc[
         (net.links.carrier.isin(carrier))
         & (net.links.bus0.str.startswith("DE"))
@@ -631,7 +631,7 @@ def set_H2_network(net, fn_new, fn_retro, baseyear, year_first, year_p, H2_retro
 
     h2_retro_clustered["p_nom"] = np.floor(h2_retro_clustered.p_nom)
     # convert p_nom from CH4 to H2 capacity
-    h2_retro_clustered.loc[:, ["p_nom"]] = h2_retro_clustered.loc[:, ["p_nom"]] * H2_retrofit_capacity_per_CH4
+    h2_retro_clustered.loc[:, ["p_nom"]] = h2_retro_clustered.loc[:, ["p_nom"]] * h2_retrofit_capacity_per_ch4
 
     net.links.loc[h2_retro_clustered.index, p_noms] \
         = h2_retro_clustered.p_nom
@@ -668,12 +668,20 @@ def _add_brownfield(n, year):
     add_build_year_to_new_assets(n, year)
 
     n_p = pypsa.Network(snakemake.input.network_p, override_component_attrs=overrides)
-    # call add_bownfield function from myopic workflow to add previous year's optimization results
+
     # if set in config custom H2 network can be added as base infrastructure such as FNB H2 core network
     # gas network is later optimized accordingly
     if snakemake.params.H2_network_custom:
         _ = set_gas_network(n_p, fn_gas)
-        set_H2_network(n_p, fn_new, fn_retro, baseyear, year_first, year_p, H2_retrofit_capacity_per_CH4)
+        if reoptimise_h2:
+            # if current year should be reoptimised then year that shall be exchanged is also current year
+            exchange_year = year
+        else:
+            # otherwise last year's H2 infrastructure will be exchanged
+            exchange_year = year_p
+        set_h2_network(n_p, fn_new, fn_retro, exchange_year, H2_retrofit_capacity_per_CH4, costs, reoptimise_h2)
+
+    # call add_bownfield function from myopic workflow to add previous year's optimization results
     add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
                    snakemake.params.H2_retrofit_capacity_per_CH4, build_back_FT_factor, OCGT_H2_retrofitting)
 
@@ -700,6 +708,7 @@ if __name__ == "__main__":
     build_back_FT_factor = options.get("build_back_FT_factor")
     OCGT_H2_retrofitting = options.get("OCGT_H2_retrofitting")
     H2_retrofit_capacity_per_CH4 = options.get("H2_retrofit_capacity_per_CH4")
+    reoptimise_h2 = options.get("reoptimise_h2")
     opts = snakemake.wildcards.sector_opts.split("-")
 
     baseyear = snakemake.params.baseyear
@@ -778,7 +787,7 @@ if __name__ == "__main__":
         # gas network is later optimized accordingly
         if snakemake.params.H2_network_custom:
             gas_old, gas_new = set_gas_network(n, fn_gas)
-            set_H2_network(n, fn_new, fn_retro, baseyear, year_first, year_p, H2_retrofit_capacity_per_CH4)
+            set_h2_network(n, fn_new, fn_retro, baseyear, H2_retrofit_capacity_per_CH4, costs, reoptimise_h2)
 
     if options.get("cluster_heat_buses", False):
         cluster_heat_buses(n)
