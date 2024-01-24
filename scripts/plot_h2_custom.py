@@ -12,6 +12,7 @@ nodes.
 """
 
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +25,11 @@ from _helpers import override_component_attrs
 from make_summary import assign_carriers
 from plot_summary import preferred_order, rename_techs
 from pypsa.plot import add_legend_circles, add_legend_lines, add_legend_patches
-from scripts.plot_network import assign_location, rename_techs_tyndp, group_pipes
-from add_existing_baseyear import set_gas_network, set_H2_network
-from add_brownfield import add_brownfield, add_build_year_to_new_assets, add_ocgt_retro
+from plot_network import assign_location, rename_techs_tyndp, group_pipes
+from prepare_sector_network import prepare_costs
+from add_existing_baseyear import set_gas_network, set_h2_network
 
-plt.style.use(["ggplot", "matplotlibrc"])
+plt.style.use(["ggplot"])
 
 
 # def plot_custom(n, regions):
@@ -92,7 +93,7 @@ plt.style.use(["ggplot", "matplotlibrc"])
 #     plt.tight_layout()
 #     # plt.savefig(f"data_exchange/{run_name}_H2_network_substituted.png", dpi=300)
 
-def plot_H2_custom(network, regions, path, save_plot=True, show_fig=True):
+def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
     n = network.copy()
     if "H2 pipeline" not in n.links.carrier.unique():
         return
@@ -177,7 +178,7 @@ def plot_H2_custom(network, regions, path, save_plot=True, show_fig=True):
 
     # group links by summing up p_nom values and taking the first value of the rest of the columns
     other_cols = dict.fromkeys(n.links.columns.drop(["p_nom_opt", "p_nom"]), "first")
-    n.links = n.links.groupby(level=0).agg({"p_nom_opt": sum, "p_nom": sum, **other_cols})
+    n.links = n.links.groupby(level=0).agg({"p_nom_opt": "sum", "p_nom": "sum", **other_cols})
 
     link_widths_total = link_widths_total.reindex(n.links.index).fillna(0.0)
     link_widths_total[n.links.p_nom_opt < line_lower_threshold] = 0.0
@@ -296,83 +297,82 @@ def plot_H2_custom(network, regions, path, save_plot=True, show_fig=True):
     if show_fig:
         fig.show()
     if save_plot:
-        fig.savefig(path, bbox_inches="tight"
-        )
+        fig.savefig(path, bbox_inches="tight")
+
 
 if __name__ == "__main__":
 
     scenario = "default"
     ll = "lvopt"
     sector_opts = "100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4"
-    year = "2035"
-    add_brownfield = False
-    run_name = f"20240113_100h_defaultdemand_myopic_stepwise_{year}"
+    years = ["2030", "2035", "2040", "2045"]
+    run = "20240113_100h_defaultdemand"
     simpl = ""
     clusters = "180"
 
-    if "snakemake" not in globals():
-        from _helpers import mock_snakemake
+    for year in years:
+        # set run name for year
+        run_name = f"{run}_myopic_stepwise_{year}"
 
-        snakemake = mock_snakemake(
-            "plot_network",
-            simpl=simpl,
-            opts="",
-            clusters=clusters,
-            ll=ll,
-            sector_opts=sector_opts,
-            planning_horizons=year,
+        if "snakemake" not in globals():
+            from _helpers import mock_snakemake
+
+            snakemake = mock_snakemake(
+                "plot_network",
+                simpl=simpl,
+                opts="",
+                clusters=clusters,
+                ll=ll,
+                sector_opts=sector_opts,
+                planning_horizons=year,
+            )
+
+        logging.basicConfig(level=snakemake.config["logging"]["level"])
+
+        map_opts = snakemake.params.plotting["map"]
+
+        # if snakemake.params.foresight == "myopic_stepwise":
+        #     planning_horizons = "planning_horizons_all"
+        # else:
+        #     planning_horizons = "planning_horizons"
+        # years_all = snakemake.config["scenario"][planning_horizons]
+        # year_first = years_all[0]
+        # year_p = years_all[years_all.index(int(year)) - 1]
+        H2_retrofit_capacity_per_CH4 = snakemake.config["sector"].get("H2_retrofit_capacity_per_CH4")
+
+
+        regions = gpd.read_file("resources/regions_onshore_elec_s_180.geojson").set_index("name")
+
+        fn_gas = f"results/{run_name}/h2_networks_custom/clustered_gas_network_custom_s{simpl}_{clusters}_"+year+".csv"
+        fn_retro = f"results/{run_name}/h2_networks_custom/clustered_h2_network_retro_custom_s{simpl}_{clusters}_"+year+".csv"
+        fn_new = f"results/{run_name}/h2_networks_custom/clustered_h2_network_new_custom_s{simpl}_{clusters}_"+year+".csv"
+
+        overrides = override_component_attrs(snakemake.input.overrides)
+        opts = sector_opts.split("-")
+
+        n = pypsa.Network(f"results/{run_name}/postnetworks/elec_s_180_lvopt__{sector_opts}_{year}.nc")
+        Nyears = n.snapshot_weightings.generators.sum() / 8760.0
+        costs = prepare_costs(
+            f"data/costs_{year}.csv",
+            snakemake.config["costs"],
+            Nyears,
         )
 
-    logging.basicConfig(level=snakemake.config["logging"]["level"])
-
-map_opts = snakemake.params.plotting["map"]
-
-if snakemake.params.foresight == "myopic_stepwise":
-    planning_horizons = "planning_horizons_all"
-else:
-    planning_horizons = "planning_horizons"
-years_all = snakemake.config["scenario"][planning_horizons]
-year_first = years_all[0]
-year_p = years_all[years_all.index(int(year)) - 1]
-H2_retrofit_capacity_per_CH4 = snakemake.config["sector"].get("H2_retrofit_capacity_per_CH4")
-
-regions = gpd.read_file("resources/regions_onshore_elec_s_180.geojson").set_index("name")
-
-if add_brownfield:
-    fn_gas = f"resources/clustered_gas_network_custom_s{simpl}_{clusters}_"+year+".csv"
-    fn_retro = f"resources/clustered_h2_network_retro_custom_s{simpl}_{clusters}_"+year+".csv"
-    fn_new = f"resources/clustered_h2_network_new_custom_s{simpl}_{clusters}_"+year+".csv"
-
-    overrides = override_component_attrs(snakemake.input.overrides)
-    opts = sector_opts.split("-")
-
-    # n_pre = pypsa.Network(f"results/{run_name}/prenetworks-brownfield/elec_s_180_lvopt__100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4_2045.nc")
-
-    n = pypsa.Network(f"results/{run_name}/postnetworks/elec_s_180_lvopt__{sector_opts}_{year}.nc")
-    # remove German H2 pipelines and add German H2 pipelines from pre network
-    h2_de = n.links.filter(like="H2 pipeline", axis=0).filter(like=year, axis=0).query("bus0.str.startswith('DE') and bus1.str.startswith('DE')").index
-    # n.mremove(
-    #     "Link",
-    #     h2_de,
-    # )
-
-    # h2_pre_df = n_pre.links.filter(like="H2 pipeline", axis=0).filter(like=year, axis=0).query("bus0.str.startswith('DE') and bus1.str.startswith('DE')")
-    # n.import_components_from_dataframe(h2_pre_df, "Link")
-
-    gas_old, gas_new = set_gas_network(n, fn_gas)
-    set_H2_network(n, fn_new, fn_retro,
-                   baseyear=year,
-                   year_first=year_first,
-                   year_p=year,
-                   H2_retrofit_capacity_per_CH4=H2_retrofit_capacity_per_CH4
-                   )
-    save_path = f"data_exchange_pypsa/{'_'.join(run_name.split('_')[:2])}/results/h2_network_dual_model_{year}.pdf"
-
-else:
-    # load pypsa network
-    n = pypsa.Network(f"results/{run_name}/prenetworks-brownfield/elec_s_180_{ll}__{sector_opts}_{year}.nc")
-    save_path = f"results/{run_name.replace(year, str(year_p))}/maps/h2_network_dual_model_{year_p}.pdf"
-    save_path = f"data_exchange_pypsa/{'_'.join(run_name.split('_')[:2])}/results/h2_network_dual_model_{year_p}.pdf"
-# n.links.filter(like="H2 pipeline", axis=0).filter(like="2030", axis=0).query("bus0.str.startswith('DE') and bus1.str.startswith('DE')").loc[:,["p_nom", "p_nom_min", "p_nom_max"]]
-
-plot_H2_custom(n, regions, path=save_path, show_fig=False)
+        # get index of current years German H2 pipelines to replace
+        h2_de = (n.links
+                 .filter(like="H2 pipeline", axis=0)
+                 .filter(like=year, axis=0)
+                 .query("bus0.str.startswith('DE') and bus1.str.startswith('DE')")
+                 .index
+                 )
+        gas_old, gas_new = set_gas_network(n, fn_gas)
+        set_h2_network(n, fn_new, fn_retro,
+                       exchange_year=year,
+                       h2_retrofit_capacity_per_ch4=H2_retrofit_capacity_per_CH4,
+                       reoptimise_h2=False,
+                       costs=costs,
+                       )
+        save_path = f"data_exchange_pypsa/{'_'.join(run_name.split('_')[:2])}/results/{scenario}"
+        os.makedirs(save_path, exist_ok=True)
+        # plot and save custom h2 network
+        plot_h2_custom(n, regions, path=f"{save_path}/h2_network_dual_model_{year}.pdf", show_fig=False)
