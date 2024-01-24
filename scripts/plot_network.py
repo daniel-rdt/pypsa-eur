@@ -251,6 +251,7 @@ def group_pipes(df, drop_direction=False):
     """
     Group pipes which connect same buses and return overall capacity.
     """
+    df = df.copy()
     if drop_direction:
         positive_order = df.bus0 < df.bus1
         df_p = df[positive_order]
