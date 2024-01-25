@@ -15,7 +15,8 @@ __pycache__
 notebooks
 benchmarks
 logs
-results
+results/**.nc
+results/tests
 doc
 data_exchange_pypsa
 zenodo.org
