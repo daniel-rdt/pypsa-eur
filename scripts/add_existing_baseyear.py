@@ -23,7 +23,7 @@ import pypsa
 import xarray as xr
 from _helpers import override_component_attrs, update_config_with_sector_opts
 from prepare_sector_network import cluster_heat_buses, define_spatial, prepare_costs
-from add_brownfield import add_brownfield, add_build_year_to_new_assets, add_ocgt_retro
+from add_brownfield import add_brownfield, add_build_year_to_new_assets, add_ocgt_retro, load_custom_gas_stores, add_custom_gas_stores
 from cluster_gas_network_custom import filter_for_country
 
 cc = coco.CountryConverter()
@@ -686,49 +686,6 @@ def _add_brownfield(n, year):
                    snakemake.params.H2_retrofit_capacity_per_CH4, build_back_FT_factor, OCGT_H2_retrofitting)
 
 
-def load_custom_gas_stores(fn, baseyear):
-
-    stores = pd.read_csv(fn, sep=";", decimal=",")
-    stores["p_nom"] = stores.loc[:, ["cap_sin_[GWh/d]", "cap_swi_[GWh/d]"]].max(axis=1) * 1000 / 24  # convert from GWh/d to MWh/h = MW
-    stores["e_nom"] = stores.loc[:, "cap_slv_[GWh]"] * 1000  # convert storage volume to MWh
-    stores.rename(columns={"pypsa_region": "bus"}, inplace=True)
-    agg_strategies = {
-        "Storage": "".join,
-        "p_nom": "sum",
-        "e_nom": "sum",
-    }
-    stores = stores.groupby("bus").aggregate(agg_strategies)
-    stores["max_hours"] = stores.e_nom / stores.p_nom  # max hours is store volume [MWh] / capacity [MW]
-    stores["bus"] = stores.index
-    stores.index = stores.bus + " gas Store"
-
-    return stores
-
-
-def add_custom_gas_stores(n, baseyear, fn):
-
-    logger.info(f"Adding custom gas storage locations replacing default ones.")
-
-    # remove previous stores
-    remove_stores_i = n.stores.query("carrier == 'gas' and bus.str.startswith('DE')").index
-    n.mremove("Store", remove_stores_i)
-
-    # add new custom stores
-    # capital cost could be corrected to e.g. 0.2 EUR/kWh * annuity and O&M
-    stores = load_custom_gas_stores(fn, baseyear)
-    capital_cost = costs.at["gas storage", "fixed"]
-    n.madd(
-        "StorageUnit",
-        stores.bus + " gas Store",
-        bus=stores.bus + " gas",
-        p_nom=stores.p_nom,
-        max_hours=stores.max_hours,
-        cyclic_state_of_charge=True,
-        carrier="gas",
-        capital_cost=capital_cost,
-    )
-
-
 # %%
 if __name__ == "__main__":
     if "snakemake" not in globals():
@@ -740,8 +697,8 @@ if __name__ == "__main__":
             clusters="180",
             ll="vopt",
             opts="",
-            sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
-            planning_horizons=2030,
+            sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
+            planning_horizons=2035,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
@@ -842,7 +799,7 @@ if __name__ == "__main__":
 
     if custom_gas_stores:
         fn_gas_stores = snakemake.params.custom_gas_stores
-        add_custom_gas_stores(n, baseyear, fn_gas_stores)
+        add_custom_gas_stores(n, fn=fn_gas_stores, costs=costs)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
 

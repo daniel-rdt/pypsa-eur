@@ -18,6 +18,7 @@ import numpy as np
 import pypsa
 from _helpers import override_component_attrs, update_config_with_sector_opts
 from pypsa.io import import_components_from_dataframe
+from prepare_sector_network import prepare_costs
 
 
 def add_build_year_to_new_assets(n, baseyear):
@@ -253,6 +254,49 @@ def add_ocgt_retro(n, year):
     # add OCGT H2 to network
     import_components_from_dataframe(n, df, "Link")
 
+
+def load_custom_gas_stores(fn):
+
+    stores = pd.read_csv(fn, sep=";", decimal=",")
+    stores["p_nom"] = stores.loc[:, ["cap_sin_[GWh/d]", "cap_swi_[GWh/d]"]].max(axis=1) * 1000 / 24  # convert from GWh/d to MWh/h = MW
+    stores["e_nom"] = stores.loc[:, "cap_slv_[GWh]"] * 1000  # convert storage volume to MWh
+    stores.rename(columns={"pypsa_region": "bus"}, inplace=True)
+    agg_strategies = {
+        "Storage": "".join,
+        "p_nom": "sum",
+        "e_nom": "sum",
+    }
+    stores = stores.groupby("bus").aggregate(agg_strategies)
+    stores["max_hours"] = stores.e_nom / stores.p_nom  # max hours is store volume [MWh] / capacity [MW]
+    stores["bus"] = stores.index
+    stores.index = stores.bus + " gas Store"
+
+    return stores
+
+
+def add_custom_gas_stores(n, fn, costs):
+
+    logger.info(f"Adding custom gas storage locations replacing default ones.")
+
+    # remove previous stores, last year's storages will not have been copied over, so gas storages need to be added again
+    remove_stores_i = n.stores.query("carrier == 'gas' and bus.str.startswith('DE')").index
+    n.mremove("Store", remove_stores_i)
+
+    # add new custom stores
+    # capital cost could be corrected to e.g. 0.2 EUR/kWh * annuity and O&M
+    stores = load_custom_gas_stores(fn)
+    capital_cost = costs.at["gas storage", "fixed"]
+    n.madd(
+        "StorageUnit",
+        stores.bus + " gas Store",
+        bus=stores.bus + " gas",
+        p_nom=stores.p_nom,
+        max_hours=stores.max_hours,
+        cyclic_state_of_charge=True,
+        carrier="gas",
+        capital_cost=capital_cost,
+    )
+
 # %%
 if __name__ == "__main__":
     if "snakemake" not in globals():
@@ -264,7 +308,7 @@ if __name__ == "__main__":
             clusters="180",
             opts="",
             ll="vopt",
-            sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2",
+            sector_opts="8760H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
             planning_horizons=2040,
         )
 
@@ -282,6 +326,7 @@ if __name__ == "__main__":
 
     build_back_FT_factor = options.get("build_back_FT_factor")
     OCGT_H2_retrofitting = options.get("OCGT_H2_retrofitting")
+    custom_gas_stores = options.get("custom_gas_stores")
 
     overrides = override_component_attrs(snakemake.input.overrides)
     n = pypsa.Network(snakemake.input.network, override_component_attrs=overrides)
@@ -295,6 +340,16 @@ if __name__ == "__main__":
 
     if OCGT_H2_retrofitting:
         add_ocgt_retro(n, year)
+
+    if custom_gas_stores:
+        Nyears = n.snapshot_weightings.generators.sum() / 8760.0
+        costs = prepare_costs(
+            snakemake.input.costs,
+            snakemake.params.costs,
+            Nyears,
+        )
+        fn_gas_stores = snakemake.params.custom_gas_stores
+        add_custom_gas_stores(n, fn=fn_gas_stores, costs=costs)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
     n.export_to_netcdf(snakemake.output[0])
