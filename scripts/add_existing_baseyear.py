@@ -707,6 +707,8 @@ def load_custom_gas_stores(fn, baseyear):
 
 def add_custom_gas_stores(n, baseyear, fn):
 
+    logger.info(f"Adding custom gas storage locations replacing default ones.")
+
     # remove previous stores
     remove_stores_i = n.stores.query("carrier == 'gas' and bus.str.startswith('DE')").index
     n.mremove("Store", remove_stores_i)
