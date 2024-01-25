@@ -685,6 +685,48 @@ def _add_brownfield(n, year):
     add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
                    snakemake.params.H2_retrofit_capacity_per_CH4, build_back_FT_factor, OCGT_H2_retrofitting)
 
+
+def load_custom_gas_stores(fn, baseyear):
+
+    stores = pd.read_csv(fn, sep=";", decimal=",")
+    stores["p_nom"] = stores.loc[:, ["cap_sin_[GWh/d]", "cap_swi_[GWh/d]"]].max(axis=1) * 1000 / 24  # convert from GWh/d to MWh/h = MW
+    stores["e_nom"] = stores.loc[:, "cap_slv_[GWh]"] * 1000  # convert storage volume to MWh
+    stores.rename(columns={"pypsa_region": "bus"}, inplace=True)
+    agg_strategies = {
+        "Storage": "".join,
+        "p_nom": "sum",
+        "e_nom": "sum",
+    }
+    stores = stores.groupby("bus").aggregate(agg_strategies)
+    stores["max_hours"] = stores.e_nom / stores.p_nom  # max hours is store volume [MWh] / capacity [MW]
+    stores["bus"] = stores.index
+    stores.index = stores.bus + " gas Store"
+
+    return stores
+
+
+def add_custom_gas_stores(n, baseyear, fn):
+
+    # remove previous stores
+    remove_stores_i = n.stores.query("carrier == 'gas' and bus.str.startswith('DE')").index
+    n.mremove("Store", remove_stores_i)
+
+    # add new custom stores
+    # capital cost could be corrected to e.g. 0.2 EUR/kWh * annuity and O&M
+    stores = load_custom_gas_stores(fn, baseyear)
+    capital_cost = costs.at["gas storage", "fixed"]
+    n.madd(
+        "StorageUnit",
+        stores.bus + " gas Store",
+        bus=stores.bus + " gas",
+        p_nom=stores.p_nom,
+        max_hours=stores.max_hours,
+        cyclic_state_of_charge=True,
+        carrier="gas",
+        capital_cost=capital_cost,
+    )
+
+
 # %%
 if __name__ == "__main__":
     if "snakemake" not in globals():
@@ -696,7 +738,7 @@ if __name__ == "__main__":
             clusters="180",
             ll="vopt",
             opts="",
-            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
+            sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4",
             planning_horizons=2030,
         )
 
@@ -709,6 +751,7 @@ if __name__ == "__main__":
     OCGT_H2_retrofitting = options.get("OCGT_H2_retrofitting")
     H2_retrofit_capacity_per_CH4 = options.get("H2_retrofit_capacity_per_CH4")
     reoptimise_h2 = options.get("reoptimise_h2")
+    custom_gas_stores = options.get("custom_gas_stores")
     opts = snakemake.wildcards.sector_opts.split("-")
 
     baseyear = snakemake.params.baseyear
@@ -794,6 +837,10 @@ if __name__ == "__main__":
 
     if OCGT_H2_retrofitting:
         add_ocgt_retro(n, baseyear)
+
+    if custom_gas_stores:
+        fn_gas_stores = snakemake.params.custom_gas_stores
+        add_custom_gas_stores(n, baseyear, fn_gas_stores)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
 
