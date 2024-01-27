@@ -47,7 +47,7 @@ def add_build_year_to_new_assets(n, baseyear):
             c.pnl[attr].rename(columns=rename, inplace=True)
 
 
-def add_brownfield(n, n_p, year, threshold, H2_retrofit, H2_retrofit_capacity_per_CH4, build_back_FT_factor, OCGT_H2_retrofitting):
+def add_brownfield(n, n_p, year, year_p, threshold, H2_retrofit, H2_retrofit_capacity_per_CH4, build_back_FT_factor, OCGT_H2_retrofitting):
     logger.info(f"Preparing brownfield for the year {year}")
 
     # electric transmission grid set optimised capacities of previous as minimum
@@ -335,7 +335,7 @@ if __name__ == "__main__":
 
     n_p = pypsa.Network(snakemake.input.network_p, override_component_attrs=overrides)
 
-    add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
+    add_brownfield(n, n_p, year, year_p, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
                    snakemake.params.H2_retrofit_capacity_per_CH4, build_back_FT_factor, OCGT_H2_retrofitting)
 
     if OCGT_H2_retrofitting:

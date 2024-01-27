@@ -682,7 +682,7 @@ def _add_brownfield(n, year):
         set_h2_network(n_p, fn_new, fn_retro, exchange_year, H2_retrofit_capacity_per_CH4, costs, reoptimise_h2)
 
     # call add_bownfield function from myopic workflow to add previous year's optimization results
-    add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
+    add_brownfield(n, n_p, year, year_p, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
                    snakemake.params.H2_retrofit_capacity_per_CH4, build_back_FT_factor, OCGT_H2_retrofitting)
 
 
@@ -697,7 +697,7 @@ if __name__ == "__main__":
             clusters="180",
             ll="vopt",
             opts="",
-            sector_opts="100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
+            sector_opts="23H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
             planning_horizons=2035,
         )
 
