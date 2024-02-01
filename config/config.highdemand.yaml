@@ -10,8 +10,8 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "20240120_23h_highdemand_myopic_stepwise_2030" # use this to keep track of runs with different settings
-  name_base: "" # option for myopic_stepwise foresight. Set to empty str for first time step, otherwise set str to name of base run
+  name: "20240126_23h_highdemand_myopic_stepwise_2045" # use this to keep track of runs with different settings
+  name_base: "20240126_23h_highdemand_myopic_stepwise_2040" # option for myopic_stepwise foresight. Set to empty str for first time step, otherwise set str to name of base run
   disable_progressbar: false # set to true to disable the progressbar
   shared_resources: true # set to true to share the default resources across runs
   shared_cutouts: true # set to true to share the default cutout(s) across runs
@@ -26,10 +26,10 @@ scenario:
 #  - 100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4
   - 23H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5
   planning_horizons:
-  - 2030
+#  - 2030
 #  - 2035
 #  - 2040
-#  - 2045
+  - 2045
   planning_horizons_all:
   - 2030
   - 2035
@@ -40,32 +40,32 @@ scenario:
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#sector
 sector:
   #what is not EV or FCEV is oil-fuelled ICE
-  land_transport_fuel_cell_share: # 0,002	0,014	0,157	0,250
+  land_transport_fuel_cell_share:
     2030: 0.089
     2035: 0.134
     2040: 0.179
     2045: 0.25
-  land_transport_electric_share: # 0,415	0,606	0,644	0,700
+  land_transport_electric_share:
     2030: 0.206
     2035: 0.350
     2040: 0.494
     2045: 0.7
-  land_transport_ice_share: # 0,583	0,379	0,199	0,050
+  land_transport_ice_share:
     2030: 0.705
     2035: 0.516
     2040: 0.327
     2045: 0.05
-  shipping_hydrogen_share: # 0,040	0,045	0,050	0,080
+  shipping_hydrogen_share:
     2030: 0.04
     2035: 0.045
     2040: 0.05
     2045: 0.08
-  shipping_methanol_share: # 0,260	0,455	0,650	0,920
+  shipping_methanol_share:
     2030: 0.26
     2035: 0.455
     2040: 0.65
     2045: 0.92
-  shipping_oil_share: # 0,700	0,500	0,300	0,000
+  shipping_oil_share:
     2030: 0.7
     2035: 0.5
     2040: 0.3
@@ -76,7 +76,7 @@ sector:
   gas_network_custom: true # if set to true custom gas network can be placed in data folder and will replace SciGRID data
   cluster_gas_network_custom: false # if set to true custom gas network needs to be clustered to PyPSA regions, else pipelines are only aggregated if necessary
   custom_gas_stores: true  # whether to use custom gas storage dataset
-  H2_network_custom: false # if set to True custom H2 network will be added with new and retrofitted pipelines
+  H2_network_custom: true # if set to True custom H2 network will be added with new and retrofitted pipelines
   cluster_H2_network_custom: false # if set to true custom H2 network needs to be clustered to PyPSA regions, else pipelines are only aggregated if necessary
   H2_retrofit: true  # if set to True existing gas pipes can be retrofitted to H2 pipes
   H2_retrofit_capacity_per_CH4: 0.849  # ratio for H2 capacity per original CH4 capacity of retrofitted pipelines
@@ -84,12 +84,12 @@ sector:
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#industry
 industry:
-  St_primary_fraction: # 0,676	0,624	0,547	0,521  # fraction of steel produced via primary route versus secondary route (scrap+EAF); today fraction is 0.6
+  St_primary_fraction:  # fraction of steel produced via primary route versus secondary route (scrap+EAF); today fraction is 0.6
     2030: 0.676
     2035: 0.624
     2040: 0.547
     2045: 0.521
-  DRI_fraction: # 0,364	0,663	1,000	1,000  # fraction of the primary route converted to DRI + EAF
+  DRI_fraction:  # fraction of the primary route converted to DRI + EAF
     2030: 0.364
     2035: 0.663
     2040: 1

@@ -17,6 +17,7 @@ benchmarks
 logs
 results/**.nc
 results/tests
+results/tests.zip
 doc
 data_exchange_pypsa
 zenodo.org
