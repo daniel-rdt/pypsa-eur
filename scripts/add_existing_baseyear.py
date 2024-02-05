@@ -629,7 +629,7 @@ def set_h2_network(net, fn_new, fn_retro, exchange_year, h2_retrofit_capacity_pe
         & (net.links.index.str.contains(year)),
         p_noms] = 0.0
 
-    h2_retro_clustered["p_nom"] = np.floor(h2_retro_clustered.p_nom)
+    # h2_retro_clustered["p_nom"] = np.floor(h2_retro_clustered.p_nom)
     # convert p_nom from CH4 to H2 capacity
     h2_retro_clustered.loc[:, ["p_nom"]] = h2_retro_clustered.loc[:, ["p_nom"]] * h2_retrofit_capacity_per_ch4
 
@@ -697,7 +697,7 @@ if __name__ == "__main__":
             clusters="180",
             ll="vopt",
             opts="",
-            sector_opts="23H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
+            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
             planning_horizons=2035,
         )
 
