@@ -10,8 +10,8 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "20240201_730SEG_defaultdemand_myopic_stepwise_2030" # use this to keep track of runs with different settings
-  name_base: "" # option for myopic_stepwise foresight. Set to empty str for first time step, otherwise set str to name of base run
+  name: "20240201_200H_defaultdemand_myopic_stepwise_2040_test" # use this to keep track of runs with different settings
+  name_base: "20240201_200H_defaultdemand_myopic_stepwise_2035_test" # option for myopic_stepwise foresight. Set to empty str for first time step, otherwise set str to name of base run
   disable_progressbar: false # set to true to disable the progressbar
   shared_resources: true # set to true to share the default resources across runs
   shared_cutouts: true # set to true to share the default cutout(s) across runs
@@ -24,11 +24,11 @@ foresight: myopic_stepwise
 scenario:
   sector_opts:
 #  - 100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4
-  - 730SEG-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5
+  - 200H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5
   planning_horizons:
-  - 2030
+#  - 2030
 #  - 2035
-#  - 2040
+  - 2040
 #  - 2045
   planning_horizons_all:
   - 2030
@@ -82,7 +82,7 @@ sector:
   gas_network_custom: true # if set to true custom gas network can be placed in data folder and will replace SciGRID data
   cluster_gas_network_custom: false # if set to true custom gas network needs to be clustered to PyPSA regions, else pipelines are only aggregated if necessary
   custom_gas_stores: true  # whether to use custom gas storage dataset
-  H2_network_custom: false # if set to True custom H2 network will be added with new and retrofitted pipelines
+  H2_network_custom: true # if set to True custom H2 network will be added with new and retrofitted pipelines
   cluster_H2_network_custom: false # if set to true custom H2 network needs to be clustered to PyPSA regions, else pipelines are only aggregated if necessary
   H2_retrofit: true  # if set to True existing gas pipes can be retrofitted to H2 pipes
   H2_retrofit_capacity_per_CH4: 0.849  # ratio for H2 capacity per original CH4 capacity of retrofitted pipelines
