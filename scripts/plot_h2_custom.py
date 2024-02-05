@@ -109,10 +109,26 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
     )
     regions["H2"] = regions["H2"].where(regions["H2"] > 0.1)
 
-    bus_size_factor = 4e4
+    bus_size_factor = 4e8
     linewidth_factor = 2e4 # 7e3
     # MW below which not drawn
     line_lower_threshold = 62
+
+    # get H2 energy balance per node
+    carrier = "H2"
+    h2_energy_balance = n.statistics.energy_balance(aggregate_bus=False).loc[:, :, carrier].droplevel(0).swaplevel()
+    # make a fake MultiIndex so that area is correct for legend
+    h2_energy_balance.rename(index=lambda x: x.replace(" H2", ""), level=0, inplace=True)
+
+    to_drop = ["H2 pipeline retrofitted", "H2 pipeline", "H2 Store"]
+    # drop pipelines and storages from energy balance
+    h2_energy_balance.drop(h2_energy_balance.loc[:, to_drop].index, inplace=True)
+    # separate into demand and supply
+    h2_demand = h2_energy_balance[h2_energy_balance < 0]
+    h2_supply = h2_energy_balance[h2_energy_balance > 0]
+
+    # make demand values positive so they can be plotted with demand
+    h2_energy_balance = h2_energy_balance.abs()
 
     # Drop non-electric buses so they don't clutter the plot
     n.buses.drop(n.buses.index[n.buses.carrier != "AC"], inplace=True)
@@ -126,8 +142,10 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
         / bus_size_factor
     )
 
+    bus_sizes = h2_energy_balance / bus_size_factor
+
     # make a fake MultiIndex so that area is correct for legend
-    bus_sizes.rename(index=lambda x: x.replace(" H2", ""), level=0, inplace=True)
+    # bus_sizes.rename(index=lambda x: x.replace(" H2", ""), level=0, inplace=True)
     # drop all links which are not H2 pipelines
     n.links.drop(
         n.links.index[~n.links.carrier.str.contains("H2 pipeline")], inplace=True
@@ -195,17 +213,18 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
     proj = ccrs.EqualEarth()
     regions = regions.to_crs(proj.proj4_init)
 
-    fig, ax = plt.subplots(figsize=(7, 6), subplot_kw={"projection": proj})
+    fig, ax = plt.subplots(figsize=(9, 6), subplot_kw={"projection": proj})
 
     color_h2_pipe = "#b3f3f4"
     color_retrofit = "#499a9c"
 
-    bus_colors = {"H2 Electrolysis": "#ff29d9", "H2 Fuel Cell": "#805394"}
+    bus_colors = {"Supply": "#ff29d9", "Demand": "#805394"}
+    tech_colors = snakemake.config["plotting"]["tech_colors"]
 
     n.plot(
         geomap=True,
         bus_sizes=bus_sizes,
-        bus_colors=bus_colors,
+        bus_colors=tech_colors,
         link_colors=color_h2_pipe,
         link_widths=link_widths_total,
         branch_components=["Link"],
@@ -280,17 +299,33 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
         legend_kw=legend_kw,
     )
 
-    colors = [bus_colors[c] for c in carriers] + [color_h2_pipe, color_retrofit]
-    labels = carriers + ["H2 pipeline (total)", "H2 pipeline (repurposed)"]
+    colors = [color_h2_pipe, color_retrofit]
+    labels = ["H2 pipeline (total)", "H2 pipeline (repurposed)"]
 
     legend_kw = dict(
         loc="upper left",
         bbox_to_anchor=(0, 1.13),
-        ncol=2,
+        ncol=1,
         frameon=False,
     )
 
     add_legend_patches(ax, colors, labels, legend_kw=legend_kw)
+
+    legend_kw = dict(
+        bbox_to_anchor=(0.07, 0.84),
+        frameon=False,
+    )
+
+    h2_carriers = h2_energy_balance.groupby(level=1).sum().index
+    colors = [tech_colors[c] for c in h2_carriers]
+    labels = h2_carriers
+
+    add_legend_patches(
+        ax,
+        colors,
+        labels,
+        legend_kw=legend_kw,
+    )
 
     ax.set_facecolor("white")
 
@@ -302,11 +337,11 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
 
 if __name__ == "__main__":
 
-    scenario = "default"
+    scenario = "high"
     ll = "lvopt"
-    sector_opts = "100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4"
+    sector_opts = "23H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5"
     years = ["2030", "2035", "2040", "2045"]
-    run = "20240113_100h_defaultdemand"
+    run = f"20240126_23h_{scenario}demand"
     simpl = ""
     clusters = "180"
 
