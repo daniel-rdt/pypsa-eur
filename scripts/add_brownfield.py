@@ -222,7 +222,8 @@ def add_ocgt_retro(n, year):
     retro_factor_ocgt = 0.15
     efficiency_ocgt = 0.39
 
-    # existing OCGT gas boilers
+    # existing OCGT gas plants
+    # code reference: implementation follows analogue to https://github.com/PyPSA/pypsa-eur/blob/2096131b03070fff5d221d37966262de52ac8b8e/scripts/prepare_perfect_foresight.py#L385-L412
     ocgt_i = n.links.query("carrier == 'OCGT' and ~p_nom_extendable and p_nom > 0").index
     if ocgt_i.empty:
         logger.info(
