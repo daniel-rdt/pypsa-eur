@@ -213,7 +213,7 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
     proj = ccrs.EqualEarth()
     regions = regions.to_crs(proj.proj4_init)
 
-    fig, ax = plt.subplots(figsize=(9, 6), subplot_kw={"projection": proj})
+    fig, ax = plt.subplots(figsize=(7, 6), subplot_kw={"projection": proj})
 
     color_h2_pipe = "#b3f3f4"
     color_retrofit = "#499a9c"
@@ -257,13 +257,13 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
         },
     )
 
-    sizes = [50, 10]
-    labels = [f"{s} GW" for s in sizes]
-    sizes = [s / bus_size_factor * 1e3 for s in sizes]
+    sizes = [300, 100, 30]
+    labels = [f"{s} TWh" for s in sizes]
+    sizes = [s / bus_size_factor * 1e6 for s in sizes]
 
     legend_kw = dict(
         loc="upper left",
-        bbox_to_anchor=(0, 1),
+        bbox_to_anchor=(-0.13, 1.01),
         labelspacing=0.8,
         handletextpad=0,
         frameon=False,
@@ -285,7 +285,7 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
 
     legend_kw = dict(
         loc="upper left",
-        bbox_to_anchor=(0.23, 1),
+        bbox_to_anchor=(-0.37, 1.01),
         frameon=False,
         labelspacing=0.8,
         handletextpad=1,
@@ -304,27 +304,27 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
 
     legend_kw = dict(
         loc="upper left",
-        bbox_to_anchor=(0, 1.13),
-        ncol=1,
+        bbox_to_anchor=(-0.37, 1.13),
         frameon=False,
     )
 
     add_legend_patches(ax, colors, labels, legend_kw=legend_kw)
 
-    legend_kw = dict(
-        bbox_to_anchor=(0.07, 0.84),
-        frameon=False,
-    )
-
     h2_carriers = h2_energy_balance.groupby(level=1).sum().index
     colors = [tech_colors[c] for c in h2_carriers]
-    labels = h2_carriers
+    labels = list(h2_carriers)
+
+    legend_kw = dict(
+        loc="upper left",
+        bbox_to_anchor=(-0.37, 0.84),
+        frameon=False,
+    )
 
     add_legend_patches(
         ax,
         colors,
         labels,
-        legend_kw=legend_kw,
+        legend_kw=legend_kw
     )
 
     ax.set_facecolor("white")
@@ -337,7 +337,7 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
 
 if __name__ == "__main__":
 
-    scenario = "high"
+    scenario = "default"
     ll = "lvopt"
     sector_opts = "23H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5"
     years = ["2030", "2035", "2040", "2045"]
