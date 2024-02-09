@@ -217,7 +217,7 @@ def add_ocgt_retro(n, year):
         "Add OCGT H2 retrofitting."
     )
     # repurposing cost of OCGT gas to H2 in % investment cost in EUR/MW
-    # source: Christidis et al (2023) - H2-Ready-Gaskraftwerke,
+    # source: Christidis et al (2023) - H2-Ready-Gaskraftwerke, Table 3
     # https://reiner-lemoine-institut.de/wp-content/uploads/2023/11/RLI-Studie-H2-ready_DE.pdf
     retro_factor_ocgt = 0.15
     efficiency_ocgt = 0.39

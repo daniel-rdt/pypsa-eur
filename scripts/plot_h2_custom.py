@@ -109,8 +109,8 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
     )
     regions["H2"] = regions["H2"].where(regions["H2"] > 0.1)
 
-    bus_size_factor = 4e8
-    linewidth_factor = 2e4 # 7e3
+    bus_size_factor = 3e8
+    linewidth_factor = 9e3 #1.5e4 # 7e3
     # MW below which not drawn
     line_lower_threshold = 62
 
@@ -215,11 +215,25 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
 
     fig, ax = plt.subplots(figsize=(7, 6), subplot_kw={"projection": proj})
 
-    color_h2_pipe = "#b3f3f4"
+    color_h2_pipe = "#81e6da"  # "#93e3f5"  # "#b3f3f4"
     color_retrofit = "#499a9c"
 
     bus_colors = {"Supply": "#ff29d9", "Demand": "#805394"}
     tech_colors = snakemake.config["plotting"]["tech_colors"]
+    tech_colors_custom = {
+        "H2 Electrolysis": "#ff29d9",
+        "SMR": "#f073da",
+        "SMR CC": "#c251ae",
+        "Fischer-Tropsch": "#25c49a",
+        "H2 Fuel Cell": "#25c49a",
+        "H2 for industry": "#25c49a",
+        "H2 for shipping": "#25c49a",
+        "OCGT H2 retrofitted": "#25c49a",
+        "Sabatier": "#25c49a",
+        "land transport fuel cell": "#25c49a",
+        "methanolisation": "#25c49a",
+    }
+    tech_colors.update(tech_colors_custom)
 
     n.plot(
         geomap=True,
@@ -337,10 +351,10 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
 
 if __name__ == "__main__":
 
-    scenario = "default"
+    scenario = "high"
     ll = "lvopt"
     sector_opts = "23H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5"
-    years = ["2030", "2035", "2040", "2045"]
+    years = ["2030"]#, "2035", "2040", "2045"]
     run = f"20240126_23h_{scenario}demand"
     simpl = ""
     clusters = "180"
