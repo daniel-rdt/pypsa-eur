@@ -215,7 +215,7 @@ def plot_energy():
 
     df = df.drop(to_drop)
 
-    logger.info(f"Total energy of {round(df.sum().iloc[0])} TWh/a")
+    logger.info(f"Total energy of {round(df.loc[df.values > 0].sum().iloc[0])} TWh/a")
 
     new_index = preferred_order.intersection(df.index).append(
         df.index.difference(preferred_order)

@@ -28,6 +28,11 @@ from pypsa.plot import add_legend_circles, add_legend_lines, add_legend_patches
 from plot_network import assign_location, rename_techs_tyndp, group_pipes
 from prepare_sector_network import prepare_costs
 from add_existing_baseyear import set_gas_network, set_h2_network
+from matplotlib import rc
+
+# activate latex text rendering
+rc('text', usetex=True)
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern Roman'], 'sans-serif': ['Computer Modern Sans serif']})
 
 plt.style.use(["ggplot"])
 
@@ -113,6 +118,7 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
     linewidth_factor = 9e3 #1.5e4 # 7e3
     # MW below which not drawn
     line_lower_threshold = 62
+    energy_threshold = 1e3  # MWh
 
     # get H2 energy balance per node
     carrier = "H2"
@@ -129,6 +135,16 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
 
     # make demand values positive so they can be plotted with demand
     h2_energy_balance = h2_energy_balance.abs()
+
+    to_drop = h2_energy_balance.index[
+        h2_energy_balance < energy_threshold
+        ]
+
+    logger.info(
+        f"Dropping all H2 supply and demand below {energy_threshold} MWh/a"
+    )
+
+    h2_energy_balance = h2_energy_balance.drop(to_drop)
 
     # Drop non-electric buses so they don't clutter the plot
     n.buses.drop(n.buses.index[n.buses.carrier != "AC"], inplace=True)
@@ -225,13 +241,13 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
         "SMR": "#f073da",
         "SMR CC": "#c251ae",
         "Fischer-Tropsch": "#25c49a",
-        "H2 Fuel Cell": "#25c49a",
-        "H2 for industry": "#25c49a",
-        "H2 for shipping": "#25c49a",
-        "OCGT H2 retrofitted": "#25c49a",
-        "Sabatier": "#25c49a",
-        "land transport fuel cell": "#25c49a",
-        "methanolisation": "#25c49a",
+        "H2 Fuel Cell": "#2d8077",
+        "H2 for industry": "#cd4f41",
+        "H2 for shipping": "#26b28a",
+        "OCGT H2 retrofitted": "#1c404c",
+        "Sabatier": "#de9e46",
+        "land transport fuel cell": "#c6dfa2",
+        "methanolisation": "#238fc4",
     }
     tech_colors.update(tech_colors_custom)
 
@@ -324,7 +340,15 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
 
     add_legend_patches(ax, colors, labels, legend_kw=legend_kw)
 
-    h2_carriers = h2_energy_balance.groupby(level=1).sum().index
+    preferred_order_supply = pd.Index(
+        [
+            "H2 Electrolysis",
+            "SMR",
+            "SMR CC",
+        ]
+    )
+    preferred_order = preferred_order_supply.intersection(h2_energy_balance.groupby(level=1).sum().index)
+    h2_carriers = h2_energy_balance.groupby(level=1).sum().loc[preferred_order].index
     colors = [tech_colors[c] for c in h2_carriers]
     labels = list(h2_carriers)
 
@@ -332,6 +356,41 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
         loc="upper left",
         bbox_to_anchor=(-0.37, 0.84),
         frameon=False,
+        title=r"\textbf{Supply}",
+        alignment="left",
+    )
+
+    add_legend_patches(
+        ax,
+        colors,
+        labels,
+        legend_kw=legend_kw
+    )
+
+    preferred_order_demand = pd.Index(
+        [
+            "Fischer-Tropsch",
+            "H2 Fuel Cell",
+            "H2 for industry",
+            "H2 for shipping",
+            "OCGT H2 retrofitted",
+            "land transport fuel cell",
+            "Sabatier",
+            "methanolisation",
+        ]
+    )
+
+    preferred_order = preferred_order_demand.intersection(h2_energy_balance.groupby(level=1).sum().index)
+    h2_carriers = h2_energy_balance.groupby(level=1).sum().loc[preferred_order].index
+    colors = [tech_colors[c] for c in h2_carriers]
+    labels = list(h2_carriers)
+
+    legend_kw = dict(
+        loc="upper left",
+        bbox_to_anchor=(-0.37, 0.65),
+        frameon=False,
+        title=r"\textbf{Demand}",
+        alignment="left",
     )
 
     add_legend_patches(
@@ -354,7 +413,7 @@ if __name__ == "__main__":
     scenario = "high"
     ll = "lvopt"
     sector_opts = "23H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5"
-    years = ["2030"]#, "2035", "2040", "2045"]
+    years = ["2045"]#, "2035", "2040", "2045"]
     run = f"20240126_23h_{scenario}demand"
     simpl = ""
     clusters = "180"
