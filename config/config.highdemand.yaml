@@ -10,8 +10,8 @@ logging:
   format: '%(levelname)s:%(name)s:%(message)s'
 
 run:
-  name: "20240201_730SEG_highdemand_myopic_stepwise_2030" # use this to keep track of runs with different settings
-  name_base: "" # option for myopic_stepwise foresight. Set to empty str for first time step, otherwise set str to name of base run
+  name: "20240201_730SEG_highdemand_myopic_stepwise_2035" # use this to keep track of runs with different settings
+  name_base: "20240201_730SEG_highdemand_myopic_stepwise_2030" # option for myopic_stepwise foresight. Set to empty str for first time step, otherwise set str to name of base run
   disable_progressbar: false # set to true to disable the progressbar
   shared_resources: true # set to true to share the default resources across runs
   shared_cutouts: true # set to true to share the default cutout(s) across runs
@@ -26,8 +26,8 @@ scenario:
 #  - 100H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4
   - 730SEG-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5
   planning_horizons:
-  - 2030
-#  - 2035
+#  - 2030
+  - 2035
 #  - 2040
 #  - 2045
   planning_horizons_all:
