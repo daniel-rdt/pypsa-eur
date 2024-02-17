@@ -61,8 +61,8 @@ if __name__ == "__main__":
     # Settings
     ###############################
 
-    run_name = "20240201_730SEG_highdemand_myopic_stepwise_2030"
-    scenario = "default"
+    scenario = "low"
+    run_name = f"20240201_730SEG_{scenario}demand_myopic_stepwise_2030"
     ll = "lvopt"
     sector_opts = "730SEG-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5"
     year = run_name[-4:]

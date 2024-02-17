@@ -36,70 +36,153 @@ rc('font', **{'family': 'serif', 'serif': ['Computer Modern Roman'], 'sans-serif
 
 plt.style.use(["ggplot"])
 
+def plot_h2_demand_flow(network, regions, path, save_plot=True, show_fig=True):
+    n = network.copy()
+    map_opts = map_opts_params.copy()
+    if "H2 pipeline" not in n.links.carrier.unique():
+        return
 
-# def plot_custom(n, regions):
-#     fig, ax = plt.subplots(figsize=(15,15), subplot_kw={"projection": ccrs.PlateCarree()})
-#     ax.coastlines()
-#     ax.add_feature(cartopy.feature.BORDERS, color='black', linewidth=1)
-#     ax.add_feature(cartopy.feature.OCEAN, color='azure')
-#     ax.add_feature(cartopy.feature.LAND, color='#FAF9F6') #'cornsilk'
-#     # ax.set_extent([5, 16, 47, 55])
-#     # ax.set_extent([-10, 25, 40, 60])
-#     ax.set_extent([-2, 23, 45, 57])
+    linewidth_factor = 2e7
+    # MW below which not drawn
+    line_lower_threshold = 1e2
+    min_energy = 0
+    lim = 50
+    link_color = "#499a9c"
+    flow_factor = 100
 
-#     onshore_regions.set_crs(crs="EPSG:4326").plot(ax=ax, facecolor="None", edgecolor="grey", alpha=0.2)
-#     linewidth_factor = 5e3
-#     line_lower_threshold = 750
-#     link_widths_retro = h2_pipes_pypsa_retro_gdf.p_nom_opt / linewidth_factor
-#     link_widths_retro[h2_pipes_pypsa_retro_gdf.p_nom_opt < line_lower_threshold] = 0.0
-#     link_widths_new = h2_pipes_pypsa_new_gdf.p_nom_opt / linewidth_factor
-#     link_widths_new[h2_pipes_pypsa_new_gdf.p_nom_opt < line_lower_threshold] = 0.0
-#     h2_pipes_pypsa_retro_gdf.set_crs(crs="EPSG:4326").plot(ax=ax, color="#499a9c", label="H2 pipeline repurposed", linewidth=link_widths_retro)
-#     h2_pipes_pypsa_new_gdf.set_crs(crs="EPSG:4326").plot(ax=ax, color="#CF9FFF", label="H2 pipeline new", linewidth=link_widths_new)
-#     h2_nodes_gdf_de.set_crs(crs="EPSG:4326").plot(ax=ax, color="green", markersize=30, alpha=0.5)
-#     # h2_nodes_gdf_de.apply(lambda x: ax.annotate(text=x['name'], xy=x.geometry.centroid.coords[0], ha='center'), axis=1);
+    assign_location(n)
 
-#     ########
-#     # add legend line color info
-#     leg = plt.legend(fontsize=25, loc="upper right")
-#     # change the line width for the legend
-#     for line in leg.get_lines():
-#         line.set_linewidth(2.0)
-#     ax.get_figure().add_artist(leg)
+    # get H2 energy balance per node
+    carrier = "H2"
+    h2_energy_balance = n.statistics.energy_balance(aggregate_bus=False).loc[:, :, carrier].droplevel(0).swaplevel()
+    # make a fake MultiIndex so that area is correct for legend
+    h2_energy_balance.rename(index=lambda x: x.replace(" H2", ""), level=0, inplace=True)
 
-#     # add legend line width info
-#     sizes = [30, 10, 5, 1]
-#     labels = [f"{s} GW" for s in sizes]
-#     scale = 1e3 / linewidth_factor
-#     sizes = [s * scale for s in sizes]
-#     legend_kw = dict(
-#         loc="upper center",
-#         bbox_to_anchor=(0.8, 0.9),
-#         ncol=2,
-#         frameon=False,
-#         labelspacing=0.8,
-#         handletextpad=1,
-#         fontsize=25,
-#     )
+    to_drop = ["H2 pipeline retrofitted", "H2 pipeline"]
+    # drop pipelines and storages from energy balance
+    h2_energy_balance.drop(h2_energy_balance.loc[:, to_drop].index, inplace=True)
 
-#     patch_kw=dict(color="lightgrey")
-#     sizes = np.atleast_1d(sizes)
-#     labels = np.atleast_1d(labels)
+    regions["H2"] = (
+        h2_energy_balance
+        .groupby(level=0)
+        .sum()
+        .div(1e6)  # TWh
+        # .mul(-1)  # so demand is positive and supply is negative
+    )
+    # regions["H2"] = regions["H2"].where(regions["H2"] > 0.1)
 
-#     assert len(sizes) == len(labels), "Sizes and labels must have the same length."
+    # Drop non-electric buses so they don't clutter the plot
+    n.buses.drop(n.buses.index[n.buses.carrier != "AC"], inplace=True)
 
-#     handles = [plt.Line2D([0], [0], linewidth=s, **patch_kw) for s in sizes]
+    if only_DE:
+        h2_energy_balance = h2_energy_balance.filter(like="DE", axis=0)
+        regions = regions.filter(like="DE", axis=0)
+        # n.buses.drop(n.buses.index[~n.buses.index.str.startswith("DE")], inplace=True)
+        for c in n.iterate_components(n.branch_components):
+            c.df.drop(c.df.index[~((c.df.bus0.str.startswith("DE")) | (c.df.bus1.str.startswith("DE")))], inplace=True)
+        n.stores.drop(n.stores.index[~n.stores.bus.str.startswith("DE")], inplace=True)
+        n.storage_units.drop(n.storage_units.index[~n.storage_units.bus.str.startswith("DE")], inplace=True)
+        map_opts["boundaries"] = [3, 18, 45, 57]
+        flow_factor = 20
+        lim = 8
 
-#     legend = ax.legend(handles, labels, **legend_kw)
+    # drop all links which are not H2 pipelines
+    n.links.drop(
+        n.links.index[~n.links.carrier.str.contains("H2 pipeline")], inplace=True
+    )
+    n.links.loc[n.links.p_nom_opt < line_lower_threshold, "p_nom_opt"] = 0.0
 
-#     ax.get_figure().add_artist(legend)
-#     ########
+    n.links.bus0 = n.links.bus0.str.replace(" H2", "")
+    n.links.bus1 = n.links.bus1.str.replace(" H2", "")
 
-#     plt.tight_layout()
-#     # plt.savefig(f"data_exchange/{run_name}_H2_network_substituted.png", dpi=300)
+    n.links["flow"] = n.snapshot_weightings.generators @ n.links_t.p0
+
+    positive_order = n.links.bus0 < n.links.bus1
+    swap_buses = {"bus0": "bus1", "bus1": "bus0"}
+    n.links.loc[~positive_order] = n.links.rename(columns=swap_buses)
+    n.links.loc[~positive_order, "flow"] = -n.links.loc[~positive_order, "flow"]
+    n.links.index = n.links.apply(lambda x: f"H2 pipeline {x.bus0} -> {x.bus1}", axis=1)
+    n.links = n.links.groupby(n.links.index).agg(
+        dict(flow="sum", bus0="first", bus1="first", carrier="first", p_nom_opt="sum")
+    )
+
+    n.links.flow = n.links.flow.where(n.links.flow.abs() > min_energy)
+
+    proj = ccrs.EqualEarth()
+    regions = regions.to_crs(proj.proj4_init)
+
+    fig, ax = plt.subplots(figsize=(7, 6), subplot_kw={"projection": proj})
+
+    link_widths_flows = n.links.flow.div(linewidth_factor)
+    # cap link width
+    link_widths_flows = (
+        link_widths_flows
+        .where((link_widths_flows.abs() < 1) | (link_widths_flows < 0), 1)
+        .where((link_widths_flows.abs() < 1) | (link_widths_flows > 0), -1)
+    )
+
+    n.plot(
+        geomap=True,
+        bus_sizes=0,
+        link_colors=link_color,
+        link_widths=link_widths_flows,
+        branch_components=["Link"],
+        ax=ax,
+        flow=pd.concat({"Link": link_widths_flows*flow_factor}),
+        **map_opts,
+    )
+
+    regions.plot(
+        ax=ax,
+        column="H2",
+        cmap="BrBG",
+        linewidths=0,
+        legend=True,
+        vmax=lim,
+        vmin=-lim,
+        legend_kwds={
+            "label": "Hydrogen balance [TWh]",
+            "shrink": 0.7,
+            "extend": "max",
+        },
+    )
+    if only_DE:
+        legend_x = -0.15
+    else:
+        legend_x = -0.37
+
+    legend_kw = dict(
+        loc="upper left",
+        bbox_to_anchor=(legend_x, 1.13),
+        frameon=False,
+        labelspacing=0.8,
+        handletextpad=1,
+    )
+
+    sizes = [20, 10, 5]
+    sizes_str = {20: " or more", 10: "", 5: ""}
+    labels = [f"Hydrogen flows of {s} TWh{sizes_str[s]}" for s in sizes]
+    scale = 1e6 / linewidth_factor
+    sizes = [s * scale for s in sizes]
+    add_legend_lines(
+        ax,
+        sizes,
+        labels,
+        patch_kw=dict(color=link_color),
+        legend_kw=legend_kw,
+    )
+
+    ax.set_facecolor("white")
+
+    if show_fig:
+        fig.show()
+    if save_plot:
+        # fig.savefig(path, bbox_inches="tight")
+        fig.savefig(path.replace("pdf", "png"), bbox_inches="tight", dpi=1000)
 
 def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
     n = network.copy()
+    map_opts = map_opts_params.copy()
     if "H2 pipeline" not in n.links.carrier.unique():
         return
 
@@ -129,9 +212,6 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
     to_drop = ["H2 pipeline retrofitted", "H2 pipeline", "H2 Store"]
     # drop pipelines and storages from energy balance
     h2_energy_balance.drop(h2_energy_balance.loc[:, to_drop].index, inplace=True)
-    # separate into demand and supply
-    h2_demand = h2_energy_balance[h2_energy_balance < 0]
-    h2_supply = h2_energy_balance[h2_energy_balance > 0]
 
     # make demand values positive so they can be plotted with demand
     h2_energy_balance = h2_energy_balance.abs()
@@ -149,6 +229,16 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
     # Drop non-electric buses so they don't clutter the plot
     n.buses.drop(n.buses.index[n.buses.carrier != "AC"], inplace=True)
 
+    if only_DE:
+        h2_energy_balance = h2_energy_balance.filter(like="DE", axis=0)
+        regions = regions.filter(like="DE", axis=0)
+        n.buses.drop(n.buses.index[~n.buses.index.str.startswith("DE")], inplace=True)
+        for c in n.iterate_components(n.branch_components):
+            c.df.drop(c.df.index[~((c.df.bus0.str.startswith("DE")) & (c.df.bus1.str.startswith("DE")))], inplace=True)
+        n.stores.drop(n.stores.index[~n.stores.bus.str.startswith("DE")], inplace=True)
+        n.storage_units.drop(n.storage_units.index[~n.storage_units.bus.str.startswith("DE")], inplace=True)
+        map_opts["boundaries"] = [3, 18, 45, 57]
+
     carriers = ["H2 Electrolysis", "H2 Fuel Cell"]
 
     elec = n.links[n.links.carrier.isin(carriers)].index
@@ -161,7 +251,6 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
     bus_sizes = h2_energy_balance / bus_size_factor
 
     # make a fake MultiIndex so that area is correct for legend
-    # bus_sizes.rename(index=lambda x: x.replace(" H2", ""), level=0, inplace=True)
     # drop all links which are not H2 pipelines
     n.links.drop(
         n.links.index[~n.links.carrier.str.contains("H2 pipeline")], inplace=True
@@ -286,14 +375,23 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
             "extend": "max",
         },
     )
+    if only_DE:
+        legend_x = -0.15
+        legend_y = 0.47
+        sizes = [30, 10, 5]
+    else:
+        legend_x = -0.37
+        legend_y = 0.65
+        sizes = [300, 100, 30]
 
-    sizes = [300, 100, 30]
     labels = [f"{s} TWh" for s in sizes]
     sizes = [s / bus_size_factor * 1e6 for s in sizes]
 
+
+
     legend_kw = dict(
         loc="upper left",
-        bbox_to_anchor=(-0.13, 1.01),
+        bbox_to_anchor=(legend_x + 0.24, 1.01),
         labelspacing=0.8,
         handletextpad=0,
         frameon=False,
@@ -315,7 +413,7 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
 
     legend_kw = dict(
         loc="upper left",
-        bbox_to_anchor=(-0.37, 1.01),
+        bbox_to_anchor=(legend_x, 1.01),
         frameon=False,
         labelspacing=0.8,
         handletextpad=1,
@@ -334,7 +432,7 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
 
     legend_kw = dict(
         loc="upper left",
-        bbox_to_anchor=(-0.37, 1.13),
+        bbox_to_anchor=(legend_x, 1.13),
         frameon=False,
     )
 
@@ -354,7 +452,7 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
 
     legend_kw = dict(
         loc="upper left",
-        bbox_to_anchor=(-0.37, 0.84),
+        bbox_to_anchor=(legend_x, 0.84),
         frameon=False,
         title=r"\textbf{Supply}",
         alignment="left",
@@ -387,7 +485,7 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
 
     legend_kw = dict(
         loc="upper left",
-        bbox_to_anchor=(-0.37, 0.65),
+        bbox_to_anchor=(legend_x, legend_y),
         frameon=False,
         title=r"\textbf{Demand}",
         alignment="left",
@@ -405,82 +503,78 @@ def plot_h2_custom(network, regions, path, save_plot=True, show_fig=True):
     if show_fig:
         fig.show()
     if save_plot:
-        fig.savefig(path, bbox_inches="tight")
-
+        # fig.savefig(path, bbox_inches="tight")
+        fig.savefig(path.replace("pdf", "png"), bbox_inches="tight", dpi=1000)
 
 if __name__ == "__main__":
 
-    scenario = "high"
+    scenario = "low"
     ll = "lvopt"
     sector_opts = "23H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5"
-    years = ["2045"]#, "2035", "2040", "2045"]
+    years = ["2030", "2035", "2040", "2045"]
     run = f"20240126_23h_{scenario}demand"
     simpl = ""
     clusters = "180"
 
     for year in years:
-        # set run name for year
-        run_name = f"{run}_myopic_stepwise_{year}"
+        for only_DE in [True, False]:
+            # set run name for year
+            run_name = f"{run}_myopic_stepwise_{year}"
 
-        if "snakemake" not in globals():
-            from _helpers import mock_snakemake
+            if "snakemake" not in globals():
+                from _helpers import mock_snakemake
 
-            snakemake = mock_snakemake(
-                "plot_network",
-                simpl=simpl,
-                opts="",
-                clusters=clusters,
-                ll=ll,
-                sector_opts=sector_opts,
-                planning_horizons=year,
+                snakemake = mock_snakemake(
+                    "plot_network",
+                    simpl=simpl,
+                    opts="",
+                    clusters=clusters,
+                    ll=ll,
+                    sector_opts=sector_opts,
+                    planning_horizons=year,
+                )
+
+            logging.basicConfig(level=snakemake.config["logging"]["level"])
+
+            map_opts_params = snakemake.params.plotting["map"]
+            H2_retrofit_capacity_per_CH4 = snakemake.config["sector"].get("H2_retrofit_capacity_per_CH4")
+            regions = gpd.read_file("resources/regions_onshore_elec_s_180.geojson").set_index("name")
+
+            fn_gas = f"results/{run_name}/h2_networks_custom/clustered_gas_network_custom_s{simpl}_{clusters}_"+year+".csv"
+            fn_retro = f"results/{run_name}/h2_networks_custom/clustered_h2_network_retro_custom_s{simpl}_{clusters}_"+year+".csv"
+            fn_new = f"results/{run_name}/h2_networks_custom/clustered_h2_network_new_custom_s{simpl}_{clusters}_"+year+".csv"
+
+            overrides = override_component_attrs(snakemake.input.overrides)
+            opts = sector_opts.split("-")
+
+            n = pypsa.Network(f"results/{run_name}/postnetworks/elec_s_180_lvopt__{sector_opts}_{year}.nc")
+            Nyears = n.snapshot_weightings.generators.sum() / 8760.0
+            costs = prepare_costs(
+                f"data/costs_{year}.csv",
+                snakemake.config["costs"],
+                Nyears,
             )
 
-        logging.basicConfig(level=snakemake.config["logging"]["level"])
-
-        map_opts = snakemake.params.plotting["map"]
-
-        # if snakemake.params.foresight == "myopic_stepwise":
-        #     planning_horizons = "planning_horizons_all"
-        # else:
-        #     planning_horizons = "planning_horizons"
-        # years_all = snakemake.config["scenario"][planning_horizons]
-        # year_first = years_all[0]
-        # year_p = years_all[years_all.index(int(year)) - 1]
-        H2_retrofit_capacity_per_CH4 = snakemake.config["sector"].get("H2_retrofit_capacity_per_CH4")
-
-
-        regions = gpd.read_file("resources/regions_onshore_elec_s_180.geojson").set_index("name")
-
-        fn_gas = f"results/{run_name}/h2_networks_custom/clustered_gas_network_custom_s{simpl}_{clusters}_"+year+".csv"
-        fn_retro = f"results/{run_name}/h2_networks_custom/clustered_h2_network_retro_custom_s{simpl}_{clusters}_"+year+".csv"
-        fn_new = f"results/{run_name}/h2_networks_custom/clustered_h2_network_new_custom_s{simpl}_{clusters}_"+year+".csv"
-
-        overrides = override_component_attrs(snakemake.input.overrides)
-        opts = sector_opts.split("-")
-
-        n = pypsa.Network(f"results/{run_name}/postnetworks/elec_s_180_lvopt__{sector_opts}_{year}.nc")
-        Nyears = n.snapshot_weightings.generators.sum() / 8760.0
-        costs = prepare_costs(
-            f"data/costs_{year}.csv",
-            snakemake.config["costs"],
-            Nyears,
-        )
-
-        # get index of current years German H2 pipelines to replace
-        h2_de = (n.links
-                 .filter(like="H2 pipeline", axis=0)
-                 .filter(like=year, axis=0)
-                 .query("bus0.str.startswith('DE') and bus1.str.startswith('DE')")
-                 .index
-                 )
-        gas_old, gas_new = set_gas_network(n, fn_gas)
-        set_h2_network(n, fn_new, fn_retro,
-                       exchange_year=year,
-                       h2_retrofit_capacity_per_ch4=H2_retrofit_capacity_per_CH4,
-                       reoptimise_h2=False,
-                       costs=costs,
-                       )
-        save_path = f"data_exchange_pypsa/{'_'.join(run_name.split('_')[:2])}/results/{scenario}"
-        os.makedirs(save_path, exist_ok=True)
-        # plot and save custom h2 network
-        plot_h2_custom(n, regions, path=f"{save_path}/h2_network_dual_model_{year}.pdf", show_fig=False)
+            # get index of current years German H2 pipelines to replace
+            h2_de = (n.links
+                     .filter(like="H2 pipeline", axis=0)
+                     .filter(like=year, axis=0)
+                     .query("bus0.str.startswith('DE') and bus1.str.startswith('DE')")
+                     .index
+                     )
+            gas_old, gas_new = set_gas_network(n, fn_gas)
+            set_h2_network(n, fn_new, fn_retro,
+                           exchange_year=year,
+                           h2_retrofit_capacity_per_ch4=H2_retrofit_capacity_per_CH4,
+                           reoptimise_h2=False,
+                           costs=costs,
+                           )
+            save_path = f"data_exchange_pypsa/{'_'.join(run_name.split('_')[:2])}/results/{scenario}"
+            os.makedirs(save_path, exist_ok=True)
+            # plot and save custom h2 network
+            if only_DE:
+                spatial = "DE"
+            else:
+                spatial = "Europe"
+            plot_h2_demand_flow(n, regions, path=f"{save_path}/h2_demand_flow_{spatial}_dual_model_{year}.pdf", show_fig=False)
+            plot_h2_custom(n, regions, path=f"{save_path}/h2_network_{spatial}_dual_model_{year}.pdf", show_fig=False)
