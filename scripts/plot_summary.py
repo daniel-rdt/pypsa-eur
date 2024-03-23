@@ -155,7 +155,8 @@ def plot_costs():
 
     df = df.drop(to_drop)
 
-    logger.info(f"Total system cost of {round(df.sum().iloc[0])} EUR billion per year")
+    for row in df.sum().items():
+        logger.info(f"Total system cost of {round(row[1])} EUR billion per year for {row[0]}")
 
     new_index = preferred_order.intersection(df.index).append(
         df.index.difference(preferred_order)
@@ -215,7 +216,8 @@ def plot_energy():
 
     df = df.drop(to_drop)
 
-    logger.info(f"Total energy of {round(df.loc[df.values > 0].sum().iloc[0])} TWh/a")
+    for row in df.loc[df.values > 0].sum().items():
+        logger.info(f"Total energy of {round(row[1])} TWh/a for {row[0]}")
 
     new_index = preferred_order.intersection(df.index).append(
         df.index.difference(preferred_order)
