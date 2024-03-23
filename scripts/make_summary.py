@@ -194,8 +194,7 @@ def calculate_costs(n, label, costs):
     return costs
 
 
-def calculate_cumulative_cost():
-    planning_horizons = snakemake.params.scenario["planning_horizons"]
+def calculate_cumulative_cost(df, planning_horizons):
 
     cumulative_cost = pd.DataFrame(
         index=df["costs"].sum().index,
@@ -205,7 +204,7 @@ def calculate_cumulative_cost():
     # discount cost and express them in money value of planning_horizons[0]
     for r in cumulative_cost.columns:
         cumulative_cost[r] = [
-            df["costs"].sum()[index] / ((1 + r) ** (index[-1] - planning_horizons[0]))
+            df["costs"].sum()[index] / ((1 + r) ** (int(index[-1]) - int(planning_horizons[0])))
             for index in cumulative_cost.index
         ]
 
@@ -704,7 +703,8 @@ if __name__ == "__main__":
     to_csv(df)
 
     if snakemake.params.foresight in ["myopic", "myopic_stepwise"]:
-        cumulative_cost = calculate_cumulative_cost()
+        planning_horizons = snakemake.params.scenario["planning_horizons"]
+        cumulative_cost = calculate_cumulative_cost(df, planning_horizons)
         cumulative_cost.to_csv(
             "results/" + snakemake.params.RDIR + "/csvs/cumulative_cost.csv"
         )

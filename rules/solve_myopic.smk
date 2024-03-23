@@ -13,6 +13,7 @@ rule add_existing_baseyear:
         costs=config["costs"],
         H2_network_custom=config["sector"]["H2_network_custom"],
         gas_network_custom=config["sector"]["gas_network_custom"],
+        custom_gas_stores="data/gas_network/rcm/Storages_DE23.csv",
     input:
         overrides="data/override_component_attrs",
         network=RESULTS
@@ -58,6 +59,8 @@ rule add_brownfield:
         sector=config["sector"],
         H2_retrofit_capacity_per_CH4=config["sector"]["H2_retrofit_capacity_per_CH4"],
         threshold_capacity=config["existing_capacities"]["threshold_capacity"],
+        custom_gas_stores="data/gas_network/rcm/Storages_DE23.csv",
+        costs=config["costs"],
     input:
         overrides="data/override_component_attrs",
         network=RESULTS

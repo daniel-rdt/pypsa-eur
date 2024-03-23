@@ -579,6 +579,7 @@ def add_ocgt_retrofit_constraint(n, snapshots):
     Add constraint for retrofitting existing OCGT gas plants to OCGT H2 plants.
     """
 
+    # code reference: implementation mainly analogue to https://github.com/PyPSA/pypsa-eur/blob/2096131b03070fff5d221d37966262de52ac8b8e/scripts/solve_network.py#L291-L332
     from pypsa.descriptors import get_activity_mask
     c = "Link"
     # existing OCGT plants
@@ -590,13 +591,9 @@ def add_ocgt_retrofit_constraint(n, snapshots):
     # store old p_nom_value for dispatch constraint
     p_nom = n.links.loc[gas_i, "p_nom"]
 
-    # TODO: check if profile is necessary or if it should always be max capacity as limit
     # electricity profile
     cols = list(set(n.loads_t.p_set.columns) & set(n.loads.query("carrier.str.contains('electricity')").index))
-    # alternative with normalised profile
-    # profile = n.loads_t.p_set[cols].div(
-    #     n.loads_t.p_set[cols].groupby(level=0).max(), level=0
-    # )
+
     # alternative with max capacity as limit
     profile = n.loads_t.p_set[cols].div(
         n.loads_t.p_set[cols], level=0

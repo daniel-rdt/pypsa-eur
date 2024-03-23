@@ -85,6 +85,7 @@ rule add_existing_baseyear:
         threshold_capacity=config["existing_capacities"]["threshold_capacity"],
         H2_network_custom=config["sector"]["H2_network_custom"],
         gas_network_custom=config["sector"]["gas_network_custom"],
+        custom_gas_stores="data/gas_network/rcm/Storages_DE23.csv",
     input:
         overrides="data/override_component_attrs",
         network=RESULTS

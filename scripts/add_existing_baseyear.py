@@ -23,7 +23,7 @@ import pypsa
 import xarray as xr
 from _helpers import override_component_attrs, update_config_with_sector_opts
 from prepare_sector_network import cluster_heat_buses, define_spatial, prepare_costs
-from add_brownfield import add_brownfield, add_build_year_to_new_assets, add_ocgt_retro
+from add_brownfield import add_brownfield, add_build_year_to_new_assets, add_ocgt_retro, load_custom_gas_stores, add_custom_gas_stores
 from cluster_gas_network_custom import filter_for_country
 
 cc = coco.CountryConverter()
@@ -629,7 +629,7 @@ def set_h2_network(net, fn_new, fn_retro, exchange_year, h2_retrofit_capacity_pe
         & (net.links.index.str.contains(year)),
         p_noms] = 0.0
 
-    h2_retro_clustered["p_nom"] = np.floor(h2_retro_clustered.p_nom)
+    # h2_retro_clustered["p_nom"] = np.floor(h2_retro_clustered.p_nom)
     # convert p_nom from CH4 to H2 capacity
     h2_retro_clustered.loc[:, ["p_nom"]] = h2_retro_clustered.loc[:, ["p_nom"]] * h2_retrofit_capacity_per_ch4
 
@@ -682,8 +682,9 @@ def _add_brownfield(n, year):
         set_h2_network(n_p, fn_new, fn_retro, exchange_year, H2_retrofit_capacity_per_CH4, costs, reoptimise_h2)
 
     # call add_bownfield function from myopic workflow to add previous year's optimization results
-    add_brownfield(n, n_p, year, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
+    add_brownfield(n, n_p, year, year_p, snakemake.params.threshold_capacity, snakemake.params.H2_retrofit,
                    snakemake.params.H2_retrofit_capacity_per_CH4, build_back_FT_factor, OCGT_H2_retrofitting)
+
 
 # %%
 if __name__ == "__main__":
@@ -696,8 +697,8 @@ if __name__ == "__main__":
             clusters="180",
             ll="vopt",
             opts="",
-            sector_opts="200H-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
-            planning_horizons=2030,
+            sector_opts="730SEG-T-H-B-I-A-solar+p3-linemaxext10-onwind+p0.4-gas+m2.5",
+            planning_horizons=2035,
         )
 
     logging.basicConfig(level=snakemake.config["logging"]["level"])
@@ -709,6 +710,7 @@ if __name__ == "__main__":
     OCGT_H2_retrofitting = options.get("OCGT_H2_retrofitting")
     H2_retrofit_capacity_per_CH4 = options.get("H2_retrofit_capacity_per_CH4")
     reoptimise_h2 = options.get("reoptimise_h2")
+    custom_gas_stores = options.get("custom_gas_stores")
     opts = snakemake.wildcards.sector_opts.split("-")
 
     baseyear = snakemake.params.baseyear
@@ -794,6 +796,10 @@ if __name__ == "__main__":
 
     if OCGT_H2_retrofitting:
         add_ocgt_retro(n, baseyear)
+
+    if custom_gas_stores:
+        fn_gas_stores = snakemake.params.custom_gas_stores
+        add_custom_gas_stores(n, fn=fn_gas_stores, costs=costs)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
 
