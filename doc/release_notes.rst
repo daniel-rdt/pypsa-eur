@@ -9,7 +9,7 @@ Release Notes
 Upcoming Release
 ================
 
-* Pin grpcio<1.78 to silence warnings that are cluttering the log (https://github.com/PyPSA/pypsa-eur/pull/2080).
+* Pin grpcio<1.78 as hotfix to silence warnings that are cluttering the log (https://github.com/PyPSA/pypsa-eur/pull/2080).
 
 * Updated unit commitment parameters. Bugfix scales start-up costs with nominal power capacitiy.
 
